@@ -37,7 +37,7 @@ def get_assembly_id(tx_id):
     assem_id = record2[0]["AssemblyID"]
     print(assem_id)
 
-    # depending on design of program later, make this get entire record for assembly?
+    # depending on design of program later, make this get entire report for assembly?
 
     return assem_id
 
@@ -45,7 +45,7 @@ def get_assembly_id(tx_id):
 Entrez.email = 'mlowry2@mymail.vcu.edu'
 refseq_pattern = re.compile(r"DR\s+RefSeq.*(XM_.*).")
 taxid_pattern = re.compile(r"OX\s+NCBI_TaxID=(\d+)")
-ftp_pattern = re.compile(r"<FtpPath_RefSeq>(\S*(GCF_\S*))<")
+ftp_pattern = re.compile(r"<FtpPath_RefSeq>\S*(genomes\S*)(GCF_\S*)<")
 missing_refseq = []
 missing_taxid = []
 missing_ftp = []
@@ -64,11 +64,15 @@ for i, record in enumerate(prot_info):
         assembly_id = get_assembly_id(tax_id)
         handle2 = Entrez.esummary(db='assembly', id=assembly_id, report='full')
         string = handle2.read()
+        #print(string)
 
-        # gets ftp link for all cds in organism (download into <path>/tax_id/)
+        # gets ftp (partial) link for all cds in organism (download into <path>/tax_id/)
         ftp_matches = get_match(ftp_pattern, string, i)
-        ftp_link = '/'.join(ftp_matches) + "_cds_from_genomic.fna.gz"
+        ftp_link = ''.join(ftp_matches)    # + "_cds_from_genomic.fna.gz"
         print(ftp_link)
+
+        # ftp_link appended to list of links to be downloaded and unzipped
+        # pass match object into function...?
 
 
 
