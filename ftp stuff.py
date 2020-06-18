@@ -16,7 +16,7 @@ ftp.cwd("genomes/all/GCF/000/005/575/GCF_000005575.2_AgamP3")
 
 # where orgs are being saved
 base_dir = "D:/Orthologs/Codon_Dist/"
-# create dir for specific org
+# create dir for specific org via tax_id
 try:
     os.chdir(base_dir + "7165")
 except OSError:
