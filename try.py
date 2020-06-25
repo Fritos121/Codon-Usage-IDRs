@@ -1,9 +1,12 @@
 from Bio import Entrez
-import re
 from bioservices import UniProt
+import re
+from time import sleep
+
 
 def get_match(pattern, search_str, index):
     match = re.search(pattern, search_str)
+    # do find iter for re?
     try:
         if len(match.groups()) == 1:
             wanted_item = match.group(1)
@@ -33,7 +36,7 @@ def get_assembly_id(tx_id):
     #print(org_id)
     handle2 = Entrez.esummary(db='genome', id=org_id) # gives assembly of genome org
     record2 = Entrez.read(handle2)
-    print(record2)
+    # print(record2)
     assem_id = record2[0]["AssemblyID"]
     print(assem_id)
 
@@ -45,7 +48,7 @@ def get_assembly_id(tx_id):
 Entrez.email = 'mlowry2@mymail.vcu.edu'
 refseq_pattern = re.compile(r"DR\s+RefSeq.*(XM_.*).")
 taxid_pattern = re.compile(r"OX\s+NCBI_TaxID=(\d+)")
-ftp_pattern = re.compile(r"<FtpPath_RefSeq>\S*(genomes\S*)(GCF_\S*)<")
+ftp_pattern = re.compile(r"<FtpPath_RefSeq>\S*(/genomes\S*)(GCF_\S*)<")
 missing_refseq = []
 missing_taxid = []
 missing_ftp = []
@@ -55,28 +58,25 @@ uids = ['A0NAQ1', 'A8DWE3'] # this will be gotten from bioservices.py somehow
 prot_info = u.retrieve(uids, frmt='txt')
 
 # get assembly ID
-
+ftp_partials = []  # list of partial ftp links to be used later
 for i, record in enumerate(prot_info):
-    if i == 0:
-        refseq_ver = get_match(refseq_pattern, record, i)
-        tax_id = get_match(taxid_pattern, record, i)
+    # if i == 0:
+    refseq_ver = get_match(refseq_pattern, record, i)
+    tax_id = get_match(taxid_pattern, record, i)
 
-        assembly_id = get_assembly_id(tax_id)
-        handle2 = Entrez.esummary(db='assembly', id=assembly_id, report='full')
-        string = handle2.read()
-        #print(string)
+    assembly_id = get_assembly_id(tax_id)
+    handle2 = Entrez.esummary(db='assembly', id=assembly_id, report='full')
+    string = handle2.read()
+    # print(string)
 
-        # gets ftp (partial) link for all cds in organism (download into <path>/tax_id/)
-        ftp_matches = get_match(ftp_pattern, string, i)
-        ftp_link = ''.join(ftp_matches)    # + "_cds_from_genomic.fna.gz"
-        print(ftp_link)
+    # gets ftp (partial) link for all cds in organism (download into <path>/tax_id/)
+    ftp_matches = get_match(ftp_pattern, string, i)
+    ftp_link = ''.join(ftp_matches)  # + "_cds_from_genomic.fna.gz"
+    # print(ftp_link)
+    ftp_partials.append((ftp_link, tax_id))
+    sleep(0.4)
 
-        # ftp_link appended to list of links to be downloaded and unzipped
-        # pass match object into function...?
+print(ftp_partials)
 
-
-
-
-
-
-
+# ftp_link appended to list of links to be downloaded and unzipped
+# pass match object into function...?
