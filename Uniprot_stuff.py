@@ -4,7 +4,7 @@ import re
 
 def get_match(pattern, search_str, index):
     """
-    Return the match for either RegEx with error handling
+    Return the match(s) for either RegEx with error handling
     :param pattern: compiled RegEx obj
     :param search_str: string to search
     :param index: int to show current spot in list of proteins, for error handling only
