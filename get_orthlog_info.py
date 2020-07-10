@@ -1,8 +1,8 @@
 from bioservices import Panther
-#from bioservices import UniProt
 import re
+import os
 
-
+# where did i get allortholog file from panther (on ftp somewhere)?
 # with a uniprot ID, read allortholog file to get panther family id that the protein is in
 
 p = Panther()
@@ -23,25 +23,40 @@ else:
 #print(ortho['mapped'][0], '\n')
 
 uniprotKB_id = re.compile(r".*?\|UniProtKB=(.*)")
-ortho_pids = []
-ortho_uids = []
+ortho_mapping = {}  # maps ortholog persistent ids to its respective uid
 print(len(family_msa))
 for x in ortho['mapped']:
     match = re.search(uniprotKB_id, x['target_gene'])
     uid = match.group(1)
     pid = x['target_persistent_id']
-    ortho_pids.append(pid)
-    ortho_uids.append(uid)
+    ortho_mapping[pid] = uid
 
 
 # get alignments for all orthologs in family (all orthologs in family, but not all genes in family are orthologs)
-orthos_msa = [alignment for alignment in family_msa if alignment['persistent_id'] in ortho_pids]
+orthos_msa = [alignment for alignment in family_msa if alignment['persistent_id'] in ortho_mapping.keys()]
 
-# can remove if not needed, just helps
-ortho_ids = list(zip(ortho_pids, ortho_uids))
-print(ortho_ids[0:2])
+print(len(orthos_msa), len(ortho_mapping))
+# genes i've been working with ('A0NAQ1', 'A8DWE3')
+# print(ortho_mapping['PTN002871129'], ortho_mapping['PTN001250064'])
 
-print(len(orthos_msa), len(ortho_pids))
 
-# now, with uniprot IDs of orthologs, we need to get to the mRNA or DNA seq at NCBI though uniprot
+# write alignment to file; placed in Panther family folder
+base_dir = os.path.abspath(r"D:\Orthologs\Ortholog_Codon_Dist")
 
+# if only one gene ever retrieved from family, take the gene name out of dir_name and add to file_name
+dir_name = os.path.join(base_dir, "PTHR42792")
+try:
+    os.mkdir(dir_name)
+except OSError:
+    pass
+
+file_name = os.path.join(dir_name, "P04949_ortholog_msa.txt")
+with open(file_name, 'w') as fh:
+    for alignment in orthos_msa:
+        seq, pid = alignment.items()
+        fh.write(">uid=" + ortho_mapping[pid[1]] + "\n")
+        fh.write(seq[1] + "\n")
+
+# pipe out uids for use in get_species_info_by_uid.py
+# do this by making dict[<Ecoli_gene>] = [ortho_uids]?  then write out dict to file to save?
+# dict[(<panther_family>, <Ecoli_gene>)] ???????
