@@ -2,6 +2,9 @@ from bioservices import Panther
 import re
 import os
 
+# E. coli genes need disorder, but need some ordered controls too
+# make txt file for list of uids of the above genes, grep allortholog file for the families
+
 # where did i get allortholog file from panther (on ftp somewhere)?
 # with a uniprot ID, read allortholog file to get panther family id that the protein is in
 
@@ -54,7 +57,7 @@ file_name = os.path.join(dir_name, "P04949_ortholog_msa.txt")
 with open(file_name, 'w') as fh:
     for alignment in orthos_msa:
         seq, pid = alignment.items()
-        fh.write(">uid=" + ortho_mapping[pid[1]] + "\n")
+        fh.write(">" + ortho_mapping[pid[1]] + "\n")
         fh.write(seq[1] + "\n")
 
 # pipe out uids for use in get_species_info_by_uid.py
