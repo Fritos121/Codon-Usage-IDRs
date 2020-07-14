@@ -1,8 +1,11 @@
+# added to prevent error (comment to see it)
+from gevent import monkey as curious_george
+curious_george.patch_all(thread=False, select=False)
+
 from Bio import Entrez
 from time import sleep
 import re
-import os
-
+import sys
 
 def get_protein_info(uniprot_ids):
     from bioservices import UniProt
@@ -14,11 +17,17 @@ def get_protein_info(uniprot_ids):
     orthos_map = {}
     u = UniProt()
 
-    uniprot_records = u.retrieve(uniprot_ids, frmt='txt')
-    # print(prot_info[0])
+    uniprot_records = list(map(lambda x: x.decode("utf-8"), u.retrieve(uniprot_ids, frmt='txt')))
+    # uniprot_records = u.retrieve(uniprot_ids, frmt='txt')
+
+    refseq_pattern = re.compile(r"DR\s+RefSeq.*(XM_.*).")
+    taxid_pattern = re.compile(r"OX\s+NCBI_TaxID=(\d+)")
 
     for i, record in enumerate(uniprot_records):
-        #record = "fffffffffffffffffff"
+        # record = "fffffffffffffffffff"
+        # print(record)
+        # quit()
+
         refseq_ver = get_match(refseq_pattern, record, missing_refseq, uniprot_ids, i)
         taxonomy_id = get_match(taxid_pattern, record, missing_taxid, uniprot_ids, i)
 
@@ -27,9 +36,9 @@ def get_protein_info(uniprot_ids):
         orthos_map[uniprot_ids[i]] = [refseq_ver, taxonomy_id]  # map protein info to its uid
 
     if missing_refseq:
-        print('Proteins Missing RefSeq version numbers: ' + ', '.join(missing_refseq))
+        print('{} Proteins Missing RefSeq Version Numbers: '.format(len(missing_refseq)) + ', '.join(missing_refseq))
     if missing_taxid:
-        print('Proteins Missing NCBI TaxIDs: ' + ', '.join(missing_taxid))
+        print('{} Proteins Missing NCBI TaxIDs: '.format(len(missing_taxid)) + ', '.join(missing_taxid))
 
     return refseq_vers, taxonomy_ids, orthos_map
 
@@ -49,7 +58,7 @@ def get_match(pattern, search_str, missing_list, id_list, index):
         return None
 
     else:
-        print(wanted_item)
+        # print(wanted_item)
         return wanted_item
 
 
@@ -74,26 +83,50 @@ def get_assembly_id(tx_id):
 
 
 if __name__ == "__main__":
-    Entrez.email = 'mlowry2@mymail.vcu.edu'
-    refseq_pattern = re.compile(r"DR\s+RefSeq.*(XM_.*).")
-    taxid_pattern = re.compile(r"OX\s+NCBI_TaxID=(\d+)")
-    ftp_pattern = re.compile(r"<FtpPath_RefSeq>\S+(/genomes\S+GCF_\S+)<")
 
-    uids = ['A0NAQ1', 'A8DWE3']  # this will be gotten from bioservices.py (piped from command line)
+    # ensure proper arguments are passed. Allows for piping and standalone use of program
+    if len(sys.argv) != 3:
+        exit("positional arguments: {} <infile> <outfile>".format(sys.argv[0]))
+
+    infile = sys.argv[1]
+    outfile = sys.argv[2]
+
+    # if no infile name passed, then assume contents of _ortholog_msa.txt file passed to stdin
+    if infile == "-":
+        in_fh = sys.stdin
+    else:
+        in_fh = open(infile)
+
+    # get list of uids (has header line from _ortholog_msa.txt file)
+    uids = [x.strip().replace(">", "") for x in in_fh.readlines()]
+
+    # name will be created by program in a directory determined from file's header line, otherwise use given name
+    if outfile == "-":
+        base_dir = uids.pop(0)
+        fn_base = "_ortholog_cds.fasta"
+        outfile = base_dir + fn_base
+
+    else:
+        uids = uids[1:]
+
+    Entrez.email = 'mlowry2@mymail.vcu.edu'
+
+    # uids = ['A0NAQ1', 'A8DWE3']
     refseq_versions, tax_ids, ortho_mapping = get_protein_info(uids)
-    print(refseq_versions, tax_ids)
+    # print(refseq_versions, tax_ids)
 
     # remove placeholders
     tax_ids = [x for x in tax_ids if x is not None]
     unique_tax_ids = list(set(tax_ids))
 
-    # get partial ftp links to be used by ftp module
-    ftp_partials = []  # list of partial ftp links to be used later
+    ftp_pattern = re.compile(r"<FtpPath_RefSeq>\S+(/genomes\S+GCF_\S+)<")
+    # get partial ftp links to be used by get_assembly_seqs_from_ftp.py
+    ftp_partials = []
     missing_ftp = []
     for i, tax_id in enumerate(unique_tax_ids):
         assembly_id = get_assembly_id(tax_id)
         handle = Entrez.esummary(db='assembly', id=assembly_id, report='full')
-        string = handle.read()
+        string = handle.read().decode("utf-8")
         # print(string)
 
         # gets ftp (partial) link for all cds in organism
@@ -101,11 +134,10 @@ if __name__ == "__main__":
         ftp_partials.append((ftp_link, tax_id))
         sleep(0.4)  # prevent timeouts from ncbi
 
-    print(ftp_partials)
-    if missing_ftp:
-        print('Proteins Missing FTP Link for Assembly: ' + ', '.join(missing_ftp))
 
-    # do something with ortho CDS here
+    if missing_ftp:
+        print('{} Proteins Missing FTP Link for Assembly: '.format(len(missing_ftp)) + ', '.join(missing_ftp))
+
     # refseq_versions, uids, and tax_ids should have same length
     # get CDS for gene
     for uid, refseq_ver in zip(uids, refseq_versions):
@@ -116,18 +148,16 @@ if __name__ == "__main__":
             handle = Entrez.efetch(db='nuccore', id=refseq_ver, rettype='fasta', retmode='text')
             cds = ''.join([x.strip() for x in handle.readlines()[1:]])
             ortho_mapping[uid].append(cds)
-            #print(ortho_mapping.items())
             handle.close()
 
     # write cds to file
-    # needs to know what dir
-    base_dir = os.path.abspath(r"D:\Orthologs\Ortholog_Codon_Dist")
-    dir_name = os.path.join(base_dir, "PTHR42792")
-    file_name = os.path.join(dir_name, "P04949_ortholog_cds.fasta")
-    with open(file_name, 'w') as fh:
+    # needs to know where
+    with open(outfile, 'w') as fh:
         for uid, info in ortho_mapping.items():
+            if uid is None or None in info:
+                continue
             fh.write(">uid=" + uid + ";refseq_ver=" + info[0] + ";tax_id=" + info[1] + "\n")
             fh.write(info[2] + "\n")
 
-
     # pipe out ftp_partials to get_assembly_seqs_from_ftp.py
+    print(len(ftp_partials), ftp_partials)

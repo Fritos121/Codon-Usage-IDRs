@@ -1,6 +1,7 @@
 from bioservices import Panther
 import re
 import os
+import platform
 
 # E. coli genes need disorder, but need some ordered controls too
 # make txt file for list of uids of the above genes, grep allortholog file for the families
@@ -10,11 +11,13 @@ import os
 
 p = Panther()
 # list of dicts; get persistant_ids for alignments we want to keep
-family_msa = p.get_family_msa('PTHR42792')
+family = 'PTHR42792'
+family_msa = p.get_family_msa(family)
 
 # can get ortho info from Allorthologs file instead... didnt have it at time of making script
 # interested in list of dicts using 'mapped' key; orthologs of given gene in given org
-ortho = p.get_ortholog(['P04949'], '83333')
+gene = 'P04949' # ['P04949']
+ortho = p.get_ortholog(gene, '83333')
 
 # if multiple genes from same org used, unmapped might be populated
 if ortho['unmapped']:
@@ -22,8 +25,8 @@ if ortho['unmapped']:
 else:
     print("All genes mapped.")
 
-#print(family_msa[0], '\n')
-#print(ortho['mapped'][0], '\n')
+# print(family_msa[0], '\n')
+# print(ortho['mapped'][0], '\n')
 
 uniprotKB_id = re.compile(r".*?\|UniProtKB=(.*)")
 ortho_mapping = {}  # maps ortholog persistent ids to its respective uid
@@ -43,23 +46,31 @@ print(len(orthos_msa), len(ortho_mapping))
 # print(ortho_mapping['PTN002871129'], ortho_mapping['PTN001250064'])
 
 
-# write alignment to file; placed in Panther family folder
-base_dir = os.path.abspath(r"D:\Orthologs\Ortholog_Codon_Dist")
+# write alignment to file; placed in Panther family folder; allows windows and linux file paths
+
+if platform.system() == "Windows":
+    base_dir = os.path.abspath(r"D:\Orthologs\Ortholog_Codon_Dist")
+elif platform.system() == "Linux":
+    base_dir = os.path.normpath("/mnt/d/Orthologs/Ortholog_Codon_Dist")
+
+fn_base = "_ortholog_msa.txt"
 
 # if only one gene ever retrieved from family, take the gene name out of dir_name and add to file_name
-dir_name = os.path.join(base_dir, "PTHR42792")
+dir_name = os.path.join(base_dir, family)
 try:
     os.mkdir(dir_name)
 except OSError:
     pass
 
-file_name = os.path.join(dir_name, "P04949_ortholog_msa.txt")
+# header contains directory and gene name for get_species... to use
+file_header = os.path.join(dir_name, gene)
+file_name = file_header + fn_base
 with open(file_name, 'w') as fh:
+    fh.write(">" + file_header + "\n")
     for alignment in orthos_msa:
         seq, pid = alignment.items()
         fh.write(">" + ortho_mapping[pid[1]] + "\n")
         fh.write(seq[1] + "\n")
 
-# pipe out uids for use in get_species_info_by_uid.py
-# do this by making dict[<Ecoli_gene>] = [ortho_uids]?  then write out dict to file to save?
-# dict[(<panther_family>, <Ecoli_gene>)] ???????
+# pipe out file name for use in get_species_info_by_uid.py
+print(file_name)
