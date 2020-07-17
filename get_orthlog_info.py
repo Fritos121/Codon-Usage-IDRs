@@ -69,5 +69,3 @@ with open(file_name, 'w') as fh:
         fh.write(">" + ortho_mapping[pid[1]] + "\n")
         fh.write(seq[1] + "\n")
 
-# pipe out file name for use in get_species_info_by_uid.py
-print(file_name)

@@ -33,8 +33,8 @@ def get_protein_info(uniprot_ids):
     for i, record in enumerate(uniprot_records):
         # record = "fffffffffffffffffff"    # test placeholder Nones
 
-        refseq_ver = get_match(refseq_pattern, record, missing_refseq, uniprot_ids, i)
-        taxonomy_id = get_match(taxid_pattern, record, missing_taxid, uniprot_ids, i)
+        refseq_ver = get_match(refseq_pattern, record, uniprot_ids, missing_refseq, i)
+        taxonomy_id = get_match(taxid_pattern, record, uniprot_ids, missing_taxid, i)
 
         refseq_vers.append(refseq_ver)  # refseq version number for coding seq
         taxonomy_ids.append(taxonomy_id)  # tax_id of organism protein belongs to
@@ -57,8 +57,8 @@ def get_match(pattern, search_str, id_list, missing_list, index):
     :param search_str: string to search
     :param id_list: list of identifiers
     :param missing_list: list to add identifier if pattern not found
-    :param index: int to show current spot in list of proteins, for error handling only
-    :return: Either the wanted pattern found OR appends to list if error and adds placeholder
+    :param index: int; to show current spot in list of ids, for error handling only
+    :return: Either the wanted pattern found (string), OR appends to list if error and returns placeholder None
     """
 
     match = re.search(pattern, search_str)
@@ -80,7 +80,11 @@ def get_match(pattern, search_str, id_list, missing_list, index):
 
 # set email in main()
 def get_assembly_id(tx_id):
-
+    """
+    Retrieves NCBI Assembly ID for a given NCBI Taxonomy ID
+    :param tx_id: string; NCBI tax id
+    :return: string; NCBI Assembly ID
+    """
     search_term = 'txid{}'.format(tx_id)  # search term format used by NCBI Genome db
     handle1 = Entrez.esearch(db='genome', term=search_term) # gets internal ID for genome in genome db
     record1 = Entrez.read(handle1)
@@ -93,14 +97,12 @@ def get_assembly_id(tx_id):
     assem_id = record2[0]["AssemblyID"]
     # print(assem_id)
 
-    # depending on design of program later, make this get entire report for assembly?
-
     return assem_id
 
 
 if __name__ == "__main__":
 
-    # ensure proper arguments are passed. Allows for piping and standalone use of program
+    # ensure proper command line arguments are passed.
     if len(sys.argv) != 3:
         exit("Required positional arguments: {} <infile> <outfile>".format(sys.argv[0]))
 
@@ -153,7 +155,6 @@ if __name__ == "__main__":
             handle.close()
 
     # write cds to file
-    # needs to know where
     with open(outfile, 'w') as fh:
         for uid, info in ortho_mapping.items():
             if uid is None or None in info:
