@@ -2,33 +2,27 @@
 from Bio.SeqUtils import GC
 from statistics import mean, stdev, median
 
-
+# for length dist, never used originally
 def get_len(seq_list):
     lens = [len(x) for x in seq_list]
     return lens
 
 
 def parse_fasta(filename):
-    gene = ''
     seq = ''
     gene_list = []
     gc_list = []
-
     with open(filename, 'r') as fh:
         for line in fh:
             if line.startswith('>'):
-                if not seq:
-                    continue
-                else:
-                    gene_list.append(gene)
-                    gc_list.append(GC(gene))
-                    gene = ''
-
+                continue
             else:
                 line = line.strip()
-                gene += line
+                seq += line
+                gene_list.append(line)
+                gc_list.append(GC(line))
 
-    return seq, seq_list, gc_list
+    return seq, gene_list, gc_list
 
 
 def parse_data(filename):
