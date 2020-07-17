@@ -47,11 +47,11 @@ print(len(orthos_msa), len(ortho_mapping))
 
 
 # write alignment to file; placed in Panther family folder; allows windows and linux file paths
-
+# once testing completed, make program take sys arg for base_dir, remove this
 if platform.system() == "Windows":
-    base_dir = os.path.abspath(r"D:\Orthologs\Ortholog_Codon_Dist")
+    base_dir = r"D:\Orthologs\Ortholog_Codon_Dist"
 elif platform.system() == "Linux":
-    base_dir = os.path.normpath("/mnt/d/Orthologs/Ortholog_Codon_Dist")
+    base_dir = os.path.abspath("/mnt/d/Orthologs/Ortholog_Codon_Dist")
 
 fn_base = "_ortholog_msa.txt"
 
@@ -62,11 +62,8 @@ try:
 except OSError:
     pass
 
-# header contains directory and gene name for get_species... to use
-file_header = os.path.join(dir_name, gene)
-file_name = file_header + fn_base
+file_name = os.path.join(dir_name, gene) + fn_base
 with open(file_name, 'w') as fh:
-    fh.write(">" + file_header + "\n")
     for alignment in orthos_msa:
         seq, pid = alignment.items()
         fh.write(">" + ortho_mapping[pid[1]] + "\n")

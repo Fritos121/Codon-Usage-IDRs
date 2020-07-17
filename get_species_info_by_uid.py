@@ -1,4 +1,4 @@
-# added to prevent error (comment to see it)
+# added to prevent error (comment out to see it)
 from gevent import monkey as curious_george
 curious_george.patch_all(thread=False, select=False)
 
@@ -7,7 +7,14 @@ from time import sleep
 import re
 import sys
 
+
 def get_protein_info(uniprot_ids):
+    """
+    Retrieves NCBI RefSeq version numbers and taxonomy ids for list of proteins. Creates a dict to map each protein's
+    uid to its refseq version and tax id
+    :param uniprot_ids: List of Uniprot IDs, e.g., "A5HYD5"
+    :return: List of Refseq Version numbers, list of taxonmy ids, and dictionary mapping each uid to its info
+    """
     from bioservices import UniProt
 
     refseq_vers = []
@@ -17,16 +24,14 @@ def get_protein_info(uniprot_ids):
     orthos_map = {}
     u = UniProt()
 
-    uniprot_records = list(map(lambda x: x.decode("utf-8"), u.retrieve(uniprot_ids, frmt='txt')))
-    # uniprot_records = u.retrieve(uniprot_ids, frmt='txt')
+    uniprot_records = list(map(lambda x: x.decode("utf-8"), u.retrieve(uniprot_ids, frmt='txt')))  # WSL cmdline
+    # uniprot_records = u.retrieve(uniprot_ids, frmt='txt')     # PyCharm
 
     refseq_pattern = re.compile(r"DR\s+RefSeq.*(XM_.*).")
     taxid_pattern = re.compile(r"OX\s+NCBI_TaxID=(\d+)")
 
     for i, record in enumerate(uniprot_records):
-        # record = "fffffffffffffffffff"
-        # print(record)
-        # quit()
+        # record = "fffffffffffffffffff"    # test placeholder Nones
 
         refseq_ver = get_match(refseq_pattern, record, missing_refseq, uniprot_ids, i)
         taxonomy_id = get_match(taxid_pattern, record, missing_taxid, uniprot_ids, i)
@@ -36,15 +41,26 @@ def get_protein_info(uniprot_ids):
         orthos_map[uniprot_ids[i]] = [refseq_ver, taxonomy_id]  # map protein info to its uid
 
     if missing_refseq:
-        print('{} Proteins Missing RefSeq Version Numbers: '.format(len(missing_refseq)) + ', '.join(missing_refseq))
+        print('\n{} Proteins Missing RefSeq Version Numbers: '.format(len(missing_refseq)) + ', '.join(missing_refseq))
     if missing_taxid:
-        print('{} Proteins Missing NCBI TaxIDs: '.format(len(missing_taxid)) + ', '.join(missing_taxid))
+        print('\n{} Proteins Missing NCBI TaxIDs: '.format(len(missing_taxid)) + ', '.join(missing_taxid))
 
     return refseq_vers, taxonomy_ids, orthos_map
 
 
-# keep generic function even though on len() == 1 used in main()
-def get_match(pattern, search_str, missing_list, id_list, index):
+# keep generic function even though only len() == 1 used in main()
+def get_match(pattern, search_str, id_list, missing_list, index):
+    """
+    Find first match using RegEx; Allows for tracking of what IDs can't get the specific pattern match and placeholders
+    to maintain indexing
+    :param pattern: compiled RegEx obj
+    :param search_str: string to search
+    :param id_list: list of identifiers
+    :param missing_list: list to add identifier if pattern not found
+    :param index: int to show current spot in list of proteins, for error handling only
+    :return: Either the wanted pattern found OR appends to list if error and adds placeholder
+    """
+
     match = re.search(pattern, search_str)
     try:
         if len(match.groups()) == 1:
@@ -86,28 +102,15 @@ if __name__ == "__main__":
 
     # ensure proper arguments are passed. Allows for piping and standalone use of program
     if len(sys.argv) != 3:
-        exit("positional arguments: {} <infile> <outfile>".format(sys.argv[0]))
+        exit("Required positional arguments: {} <infile> <outfile>".format(sys.argv[0]))
 
     infile = sys.argv[1]
     outfile = sys.argv[2]
 
-    # if no infile name passed, then assume contents of _ortholog_msa.txt file passed to stdin
-    if infile == "-":
-        in_fh = sys.stdin
-    else:
-        in_fh = open(infile)
+    in_fh = open(infile)
 
-    # get list of uids (has header line from _ortholog_msa.txt file)
-    uids = [x.strip().replace(">", "") for x in in_fh.readlines()]
-
-    # name will be created by program in a directory determined from file's header line, otherwise use given name
-    if outfile == "-":
-        base_dir = uids.pop(0)
-        fn_base = "_ortholog_cds.fasta"
-        outfile = base_dir + fn_base
-
-    else:
-        uids = uids[1:]
+    # get list of uids
+    uids = [x.strip().replace(">", "") for x in in_fh.readlines() if x.startswith(">")]
 
     Entrez.email = 'mlowry2@mymail.vcu.edu'
 
@@ -115,12 +118,12 @@ if __name__ == "__main__":
     refseq_versions, tax_ids, ortho_mapping = get_protein_info(uids)
     # print(refseq_versions, tax_ids)
 
-    # remove placeholders
+    # remove placeholder Nones
     tax_ids = [x for x in tax_ids if x is not None]
     unique_tax_ids = list(set(tax_ids))
 
-    ftp_pattern = re.compile(r"<FtpPath_RefSeq>\S+(/genomes\S+GCF_\S+)<")
     # get partial ftp links to be used by get_assembly_seqs_from_ftp.py
+    ftp_pattern = re.compile(r"<FtpPath_RefSeq>\S+(/genomes\S+GCF_\S+)<")
     ftp_partials = []
     missing_ftp = []
     for i, tax_id in enumerate(unique_tax_ids):
@@ -134,9 +137,8 @@ if __name__ == "__main__":
         ftp_partials.append((ftp_link, tax_id))
         sleep(0.4)  # prevent timeouts from ncbi
 
-
     if missing_ftp:
-        print('{} Proteins Missing FTP Link for Assembly: '.format(len(missing_ftp)) + ', '.join(missing_ftp))
+        print('\n{} Proteins Missing FTP Link for Assembly: '.format(len(missing_ftp)) + ', '.join(missing_ftp))
 
     # refseq_versions, uids, and tax_ids should have same length
     # get CDS for gene
@@ -160,4 +162,5 @@ if __name__ == "__main__":
             fh.write(info[2] + "\n")
 
     # pipe out ftp_partials to get_assembly_seqs_from_ftp.py
+    # write to csv file?
     print(len(ftp_partials), ftp_partials)
