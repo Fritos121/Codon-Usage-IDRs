@@ -1,28 +1,36 @@
 # Get GC from Codon distribution
 from Bio.SeqUtils import GC
-from get_statsV3 import parse_fasta, parse_data
-from statistics import mean, stdev, median
+from get_stats import parse_fasta, parse_data
+from statistics import mean
 
 
 def codon_iter(seq):
-    # takes DNA seq and yields generator of codons in seq
-    # learn about generators and iterators
+    """
+    Takes DNA seq and yields generator of codons in seq
+    :param seq: string; DNA sequence
+    """
     for y in range(0, len(seq), 3):
         yield seq[y:y + 3]
 
+
 def flip_trans_table(translation_table):
-    # flip translation table so key:value is now AA:codon(s)
+    """
+    Flip translation table so key:value is now AA:codon(s)
+    :param translation_table: dictionary of 'codon':'AA' key-value pairs
+    :return: dictionary of flipped translation table
+    """
     tt_flip = {aa: [c for c, a in translation_table.items() if a == aa] for aa in set(translation_table.values())}
 
     return tt_flip
 
-# make encapsulated function?
+# combine this and next function into one later; keep these two for main() if lazy
 def get_Org_counts(protein_list, translation_table):
-    '''
-    gets codon and aa counts for whole organism
-    param protein_list: list of each protein coding gene sequence in organism
-    param translation_table: dictionary of 'codon':'AA' key-value pairs
-    '''
+    """
+    Gets codon and aa counts for whole organism
+    :param protein_list: list of each protein coding gene sequence in organism
+    :param translation_table: dictionary of 'codon':'AA' key-value pairs
+    :return dictionaries of codon counts and amino acid counts
+    """
     codon_counts = {}
     aa_counts = {}
     for x in protein_list:
@@ -52,39 +60,50 @@ def get_Org_counts(protein_list, translation_table):
     return codon_counts, aa_counts
 
 
-def get_Prot_counts(protein_list, translation_table):
-    '''
-    makes list of dicts of aa_counts in protein from protein_list
-    '''
+def get_Prot_counts(protein_list, translation_table, mode='aa'):
+    """
+    Makes list of dicts of aa counts or codon counts in protein from protein_list
+    :param protein_list: list of protein coding DNA sequences
+    :param translation_table: dictionary of 'codon':'AA' key-value pairs
+    :param mode: string; either 'aa' to get amino acid counts, or 'codon' to get codon counts
+    :return list of dictionaries, one dict for each protein in protein_list
+    """
     protein_counts = []
     for x in protein_list:
-        aa_counts = {}
+        counts = {}
         for codon in codon_iter(x):
             # don't include open frame end of gene
             if len(codon) % 3 == 0:
-                # remove
-                try:
-                    aa = translation_table[codon]
-                except KeyError:
-                    continue
+                if mode == 'aa':
+                    try:
+                        aa = translation_table[codon]
+                    except KeyError:
+                        continue
 
-                try:
-                    aa_counts[aa] += 1
-                except KeyError:
-                    aa_counts[aa] = 1
+                    try:
+                        counts[aa] += 1
+                    except KeyError:
+                        counts[aa] = 1
 
-        protein_counts.append(aa_counts)
+                elif mode == 'codon':
+                    try:
+                        counts[codon] += 1
+                    except KeyError:
+                        counts[codon] = 1
+
+        protein_counts.append(counts)
 
     return protein_counts
 
 
 def get_GC(codon_frac, aa_counts, translation_table):
-    '''
-    calculates GC for aa_counts dict provided (so for either org, or list of proteins)
-    param codon_frac: dict of codon:prop of codon count to overall codon count for amino acid
-    param aa_counts: dictionary of counts of each amino acid
-    param translation_table: dictionary of 'codon':'AA' key-value pairs
-    '''
+    """
+    Calculates GC for aa_counts dict provided (so for either org, or list of proteins)
+    :param codon_frac: dict of codon:prop of codon count to overall codon count for amino acid
+    :param aa_counts: dictionary of counts of each amino acid
+    :param translation_table: dictionary of 'codon':'AA' key-value pairs
+    :return int; calculated GC
+    """
 
     tt_flip = flip_trans_table(translation_table)
     gc_contrib = {}
@@ -93,7 +112,7 @@ def get_GC(codon_frac, aa_counts, translation_table):
             continue
         codon_gc = []
         for codon in codons:
-            # not every codon in every protein, so some error handling... ew I know
+            # not every codon in every protein, so some error handling
             codon_gc.append((GC(codon) / 100) * (codon_frac[codon]))
 
         gc_contrib[aa] = sum(codon_gc) * (aa_counts[aa] / sum(aa_counts.values()))
@@ -104,18 +123,34 @@ def get_GC(codon_frac, aa_counts, translation_table):
 
 
 def change_counts(codon_counts, translation_table):
-    '''
-    makes dict of codon:fraction this codon contributes to overall codon count for its amino acid
-    param codon_counts: dictionary of codon counts in an organism
-    '''
+    """
+    Makes dict of codon:<fraction this codon contributes to overall codon count for its amino acid>
+    :param codon_counts: dictionary of codon counts
+    :param translation_table: dictionary of 'codon':'AA' key-value pairs
+    :return dictionary of codon distributions per their respective amino acid
+    """
 
     tt_flip = flip_trans_table(translation_table)
     codon_frac = {}
     for aa, codons in tt_flip.items():
-        # get total number of codons that translate to given aa
-        total_codon = sum([codon_counts[codon] for codon in codons])
+
+        # get total number of codons that translate to a given aa
+        # error handling required as not all codons from trans_table will be in codon_counts
+        # can remove handling if trans_table flexibility (not just 11) added?
+        working_list = []
         for codon in codons:
-            codon_frac[codon] = codon_counts[codon] / total_codon
+            try:
+                working_list.append(codon_counts[codon])
+            except KeyError:
+                pass
+
+        total_codon = sum(working_list)
+
+        for codon in codons:
+            try:
+                codon_frac[codon] = codon_counts[codon] / total_codon
+            except KeyError:
+                pass
 
     return codon_frac
 
