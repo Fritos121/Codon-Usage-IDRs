@@ -1,6 +1,7 @@
 from bioservices import Panther
 import re
 import os
+import sys
 import platform
 
 # E. coli genes need disorder, but need some ordered controls too
@@ -53,6 +54,7 @@ if platform.system() == "Windows":
 elif platform.system() == "Linux":
     base_dir = os.path.abspath("/mnt/d/Orthologs/Ortholog_Codon_Dist")
 
+# base_dir = sys.argv[1]
 fn_base = "_ortholog_msa.txt"
 
 # if only one gene ever retrieved from family, take the gene name out of dir_name and add to file_name

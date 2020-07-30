@@ -164,8 +164,9 @@ if __name__ == "__main__":
             if uid is None or None in info:
                 continue
 
-            fh.write(">uid=" + uid + ";embl_acc=" + info[0] + ";tax_id=" + info[1] + "\n")
-            fh.write(info[2] + "\n")
+            else:
+                fh.write(">uid=" + uid + ";embl_acc=" + info[0] + ";tax_id=" + info[1] + "\n")
+                fh.write(info[2] + "\n")
 
     # write to csv file
     # outfile2 = r"D:\Orthologs\Ortholog_Codon_Dist\PTHR42792\P04949_ortholog_links.csv"
