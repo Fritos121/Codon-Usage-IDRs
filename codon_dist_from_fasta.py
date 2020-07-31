@@ -22,14 +22,14 @@ def parse_fasta(filename):
 # fasta file created by get_species_info_from_uid.py
 infile = sys.argv[1]
 
-# going to be the family folder + /Codon_Distributions
-# make default directory same dir as input file (build from it?), and make this optional arg?
+# where to save codon distribution files
 target_dir = sys.argv[2]
 uids, coding_seqs = parse_fasta(infile)
 
 # verified against ncbi 08Apr2019, plus Chris's exceptions in species.py
 # allow for selenocysteine (TGA=U) (https://en.wikipedia.org/wiki/Selenocysteine)
 # allow for pyrrolysine (TAG=O) (https://en.wikipedia.org/wiki/Pyrrolysine)
+# 64
 tt_11 = {
     'ATA': 'I', 'ATC': 'I', 'ATT': 'I', 'ATG': 'M',
     'ACA': 'T', 'ACC': 'T', 'ACG': 'T', 'ACT': 'T',
@@ -49,23 +49,32 @@ tt_11 = {
     'TGC': 'C', 'TGT': 'C', 'TGA': 'U', 'TGG': 'W',
 }
 
+# get list of dicts that count codon occurrences in cds
 codon_counts = cd.get_Prot_counts(coding_seqs, tt_11, mode='codon')
 
+
 codon_dists = []
-i=0
 for count_dict in codon_counts:
+    # change counts dict into a frequency distribution
     codon_dist = cd.change_counts(count_dict, tt_11)
     codon_dists.append(codon_dist)
-    if i == 0:
-        print(len(codon_dists), codon_dists[0])
-        quit()
+    # print(len(codon_dists), codon_dists[0])
 
 try:
     os.mkdir(target_dir)
 except OSError:
     pass
 
+# uid and distribution indexing should still line up from original fasta parsing
+# create csv file to store distributions
+for i, dist in enumerate(codon_dists):
+    filename = os.path.join(target_dir, uids[i]) + '.csv'
+    with open(filename, 'w') as fh:
+        for codon, fraction in dist.items():
+            fh.write(codon + ', ' + str(fraction) + '\n')
 
+    #if i == 4:
+     #   quit()
 
 
 
