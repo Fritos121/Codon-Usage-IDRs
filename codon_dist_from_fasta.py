@@ -1,5 +1,6 @@
 import sys
 import os
+import argparse
 import codon_dist as cd
 
 
@@ -19,17 +20,38 @@ def parse_fasta(filename):
     return uids, cds_list
 
 
+# use argparse
+parser = argparse.ArgumentParser()
+parser.add_argument("infile", help="fasta file from get_species_info_by_uid.py")
+parser.add_argument("target_directory", help="directory to store output files")
+output = parser.add_mutually_exclusive_group(required=True)
+output.add_argument("-o", "--outfile", help="name of output file")
+output.add_argument("-m", "--multi_out", action="store_true", help="produces multiple output files")
+# if -m specified, output file count = number of sequences in fasta file
+
+args = parser.parse_args()
+infile = args.infile
+target_dir = args.target_directory
+outfile = args.outfile
+
+'''
+# use sys.argv
+# ensure proper command line arguments are passed.
+if len(sys.argv) != 3:
+    exit("Required positional arguments: {} <infile> <target_directory>".format(sys.argv[0]))
+
 # fasta file created by get_species_info_from_uid.py
 infile = sys.argv[1]
 
 # where to save codon distribution files
 target_dir = sys.argv[2]
+'''
+
 uids, coding_seqs = parse_fasta(infile)
 
 # verified against ncbi 08Apr2019, plus Chris's exceptions in species.py
 # allow for selenocysteine (TGA=U) (https://en.wikipedia.org/wiki/Selenocysteine)
 # allow for pyrrolysine (TAG=O) (https://en.wikipedia.org/wiki/Pyrrolysine)
-# 64
 tt_11 = {
     'ATA': 'I', 'ATC': 'I', 'ATT': 'I', 'ATG': 'M',
     'ACA': 'T', 'ACC': 'T', 'ACG': 'T', 'ACT': 'T',
@@ -50,15 +72,19 @@ tt_11 = {
 }
 
 # get list of dicts that count codon occurrences in cds
-codon_counts = cd.get_Prot_counts(coding_seqs, tt_11, mode='codon')
-
-
 codon_dists = []
-for count_dict in codon_counts:
-    # change counts dict into a frequency distribution
-    codon_dist = cd.change_counts(count_dict, tt_11)
-    codon_dists.append(codon_dist)
-    # print(len(codon_dists), codon_dists[0])
+if args.multi_out:
+    print(len(coding_seqs), "output files will be created")
+    codon_counts = cd.get_protein_counts(coding_seqs, tt_11)
+
+    for count_dict in codon_counts:
+        # change counts dict into a frequency distribution
+        codon_dist = cd.frequentize_counts(count_dict, tt_11)
+        codon_dists.append(codon_dist)
+        # print(len(codon_dists), codon_dists[0])
+else:
+    codon_counts = cd.get_org_counts(coding_seqs, tt_11)
+    codon_dists.append(cd.frequentize_counts(codon_counts, tt_11))
 
 try:
     os.mkdir(target_dir)
@@ -66,18 +92,15 @@ except OSError:
     pass
 
 # uid and distribution indexing should still line up from original fasta parsing
-# create csv file to store distributions
+# create csv file(s) to store distributions
 for i, dist in enumerate(codon_dists):
-    filename = os.path.join(target_dir, uids[i]) + '.csv'
+    if args.multi_out:
+        filename = os.path.join(target_dir, uids[i]) + '.csv'
+    else:
+        filename = os.path.join(target_dir, outfile)
     with open(filename, 'w') as fh:
         for codon, fraction in dist.items():
             fh.write(codon + ', ' + str(fraction) + '\n')
-
-    #if i == 4:
-     #   quit()
-
-
-
 
 
 
