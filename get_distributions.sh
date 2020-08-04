@@ -1,19 +1,14 @@
 #!/bin/bash
 
-
-while getopts :p:m opt; do
+while getopts :m opt; do
 case ${opt} in
-    p)
-        parent_dir=$OPTARG
-        ;;
-
     m)
         echo "Multiple output files will be created for each fasta read"
         mode="-m"
         ;;
 
     \?)
-        echo "Usage $0 [-p <parent_directory>][-m]"
+        echo "Usage $0 <parent_directory> [-m]"
         exit 2
         ;;
 esac
@@ -21,6 +16,7 @@ done
 
 shift $((OPTIND - 1))
 
+parent_dir=$1
 if [[ ! -d $parent_dir ]]; then
 	echo "Cannot find parent directory. Please make sure it exists."
 	exit 1
@@ -45,9 +41,5 @@ for dir in $sub_dirs; do
 	fi
 
 done
-
-
-
-
 
 
