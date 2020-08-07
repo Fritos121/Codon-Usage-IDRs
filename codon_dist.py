@@ -90,11 +90,8 @@ def translate_counts(codon_counts, translation_table):
         aa_counts['x'] = 0
 
         for codon, count in count_dict.items():
-            try:
-                aa = translation_table[codon]
-                aa_counts[aa] += count
-            except KeyError:
-                aa_counts['x'] += count
+            aa = translation_table.get(codon, 'x')
+            aa_counts[aa] += count
 
         translated_counts.append(aa_counts)
 

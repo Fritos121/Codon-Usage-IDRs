@@ -8,7 +8,7 @@ case ${opt} in
         ;;
 
     \?)
-        echo "Usage $0 <parent_directory> [-m]"
+        echo "Usage $0 [-m] <parent_directory>"
         exit 2
         ;;
 esac
@@ -31,10 +31,11 @@ for dir in $sub_dirs; do
 	fna_file="$(ls ${dir}*.fna 2> /dev/null)" || fna_file="$(ls ${dir}*.fasta)" 
 
 		
-	if [[ $mode == "" ]]; then	
-		outfile="${fna_file%.*}""_dist.csv" 
+	if [[ $mode == "" ]]; then
+	  # takes everything before last dot
+		outfile="${fna_file%.*}""_dist.csv"
 		python3 codon_dist_from_fasta.py $fna_file $dir -o $outfile
-	
+
 	else
 		target_dir="${dir}""Codon_Distributions/"
 		python3 codon_dist_from_fasta.py $fna_file $target_dir -m
