@@ -1,28 +1,26 @@
-import sys
 import os
 import argparse
 import codon_dist as cd
 
 
-def parse_fasta(filename):
-    with open(filename, 'r') as fh:
-        uids = []
-        cds_list = []
-        for line in fh:
-            if line.startswith('>'):
-                uid = line.split(';')[0][5:]
-                uids.append(uid)
+def parse_fasta(file_handle):
+    uids = []
+    cds_list = []
+    for line in file_handle:
+        if line.startswith('>'):
+            uid = line.split(';')[0][5:]
+            uids.append(uid)
 
-            else:
-                seq = line.strip()
-                cds_list.append(seq)
+        else:
+            seq = line.strip()
+            cds_list.append(seq)
 
     return uids, cds_list
 
 
 # use argparse
 parser = argparse.ArgumentParser()
-parser.add_argument("infile", help="fasta file from get_species_info_by_uid.py")
+parser.add_argument("infile", type=argparse.FileType('r'), help="fasta file from get_species_info_by_uid.py")
 parser.add_argument("target_directory", help="directory to store output files")
 output = parser.add_mutually_exclusive_group(required=True)
 output.add_argument("-o", "--outfile", help="name of output file")
@@ -33,19 +31,6 @@ args = parser.parse_args()
 infile = args.infile
 target_dir = args.target_directory
 outfile = args.outfile
-
-'''
-# use sys.argv
-# ensure proper command line arguments are passed.
-if len(sys.argv) != 3:
-    exit("Required positional arguments: {} <infile> <target_directory>".format(sys.argv[0]))
-
-# fasta file created by get_species_info_from_uid.py
-infile = sys.argv[1]
-
-# where to save codon distribution files
-target_dir = sys.argv[2]
-'''
 
 uids, coding_seqs = parse_fasta(infile)
 
