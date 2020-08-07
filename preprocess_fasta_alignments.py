@@ -15,6 +15,9 @@ align_in = r'D:\Orthologs\Ortholog_Codon_Dist\PTHR42792\P04949_ortholog_msa.txt'
 cds_in = r'D:\Orthologs\Ortholog_Codon_Dist\PTHR42792\P04949_ortholog_cds.fna'
 format = 'fasta'
 
+# no dots in file path until file extension
+align_out = align_in.split('.', 1)[0] + '_codon.txt'
+
 tt_11 = {
     'ATA': 'I', 'ATC': 'I', 'ATT': 'I', 'ATG': 'M',
     'ACA': 'T', 'ACC': 'T', 'ACG': 'T', 'ACT': 'T',
@@ -37,49 +40,65 @@ tt_11 = {
 # check if alphabet required in long run... later
 # adds gap both gap characters seen in PANTHER msa
 msa_alphabet = AlphabetEncoder(IUPAC.ExtendedIUPACProtein(), '-.')
-# print(msa_alphabet.letters)
 
 # the two fed files should be in the same order (expected if using entire pipeline), allowing for easy indexing
 coding_seqs = list(SeqIO.parse(cds_in, format, alphabet=IUPAC.IUPACUnambiguousDNA()))
 
-codon_alignments = []
+out_fh = open(align_out, 'w')
 for i, alignment in enumerate(AlignIO.read(align_in, format, alphabet=msa_alphabet)):
+    # coding seq id needs split, can be made more general for all fasta later...
+    assert (alignment.id == coding_seqs[i].id.split(';')[0][4:]), "Alignment ID doesn't match coding sequence ID"
+    #print(len(alignment.seq))
+    #print(len(str(coding_seqs[i].seq)))
+
     # don't need Seq object, just make string to make iterator more clear
     codon_seq = list(codon_iter(str(coding_seqs[i].seq)))
+    print(len(codon_seq))
+    print(codon_seq)
     codon_position = 0      # marks where we are in the list of codons
     translated_seq = ''     # translated from aa to DNA
-
+    j = 1   # counts number of non-gap aa; should end at len(codon_seq)... True will print if it does
     for aa in alignment.seq:
+
         if aa == '.' or aa == '-':
-            translated_seq += aa*3
+            translated_seq += aa * 3
 
         else:
+            j += 1
+            print(j, codon_position)
             codon = codon_seq[codon_position]
+            #print(codon, codon_position * 3)
             # make sure codon isn't an open frame (at end of seq)
             if len(codon) % 3 == 0:
                 # check if aa in aligned seq translates to corresponding codon in codon_seq
                 trans_aa = try_translate(codon, tt_11)
                 if aa.upper() == trans_aa and trans_aa is not None:
                     # check if aa in lower case
-                    # if aa.islower():
-                        # translated_seq += '...'   # . or -?
-                    # else:
-                    translated_seq += codon
+                    if aa.islower():
+                        translated_seq += '...'
+                    else:
+                        translated_seq += codon
+
                     codon_position += 1
 
-                # else for when mismatch occurs?
+                # for when mismatch occurs; get alignment id  and alignment and cds positions
+                else:
+                    translated_seq += 'NNN'
+                    codon_position += 1
+                    #print('oops')
 
             else:
                 codon_position += 1
 
-    # store SeqRecords later?
-    #print(translated_seq)
-    codon_alignments.append(translated_seq)
-    # check that every codon was properly iterated over; if False, aa.upper() != output (via KeyError or legit mismatch)
-    print(len(codon_seq) - 1 == codon_position)
-    #break
 
-print(len(codon_alignments))
+    # check that every codon was properly iterated over; if False, aa.upper() != output (via KeyError or legit mismatch)
+    print(j == len(codon_seq))
+    #print(len(codon_seq) - 1 == codon_position)
+
+    out_fh.write('>' + alignment.id + '\n')
+    out_fh.write(translated_seq + '\n')
+
+out_fh.close()
 
 
 
