@@ -1,6 +1,7 @@
 from bioservices import Panther
 import re
 import os
+import sys
 import platform
 
 # E. coli genes need disorder, but need some ordered controls too
@@ -32,11 +33,18 @@ uniprotKB_id = re.compile(r".*?\|UniProtKB=(.*)")
 ortho_mapping = {}  # maps ortholog persistent ids to its respective uid
 print(len(family_msa))
 for x in ortho['mapped']:
+    # print(x)
     match = re.search(uniprotKB_id, x['target_gene'])
     uid = match.group(1)
     pid = x['target_persistent_id']
     ortho_mapping[pid] = uid
+# adds the gene of interest to ortho_mapping so its information is included in later analysis and processing
+else:
+    uid = x['id']
+    pid = x['persistent_id']
+    ortho_mapping[pid] = uid
 
+#print(ortho_mapping)
 
 # get alignments for all orthologs in family (all orthologs in family, but not all genes in family are orthologs)
 orthos_msa = [alignment for alignment in family_msa if alignment['persistent_id'] in ortho_mapping.keys()]
@@ -53,6 +61,7 @@ if platform.system() == "Windows":
 elif platform.system() == "Linux":
     base_dir = os.path.abspath("/mnt/d/Orthologs/Ortholog_Codon_Dist")
 
+# base_dir = sys.argv[1]
 fn_base = "_ortholog_msa.txt"
 
 # if only one gene ever retrieved from family, take the gene name out of dir_name and add to file_name

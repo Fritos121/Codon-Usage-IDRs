@@ -1,90 +1,111 @@
 # Get GC from Codon distribution
 from Bio.SeqUtils import GC
-from get_statsV3 import parse_fasta, parse_data
-from statistics import mean, stdev, median
+from get_stats import parse_fasta, parse_data
+from statistics import mean
 
 
 def codon_iter(seq):
-    # takes DNA seq and yields generator of codons in seq
-    # learn about generators and iterators
+    """
+    Takes DNA seq and yields generator of codons in seq
+    :param seq: string; DNA sequence
+    """
+
     for y in range(0, len(seq), 3):
         yield seq[y:y + 3]
 
+
 def flip_trans_table(translation_table):
-    # flip translation table so key:value is now AA:codon(s)
+    """
+    Flip translation table so key:value is now AA:codon(s)
+    :param translation_table: dictionary of 'codon':'AA' key-value pairs
+    :return: dictionary of flipped translation table
+    """
+
     tt_flip = {aa: [c for c, a in translation_table.items() if a == aa] for aa in set(translation_table.values())}
 
     return tt_flip
 
-# make encapsulated function?
-def get_Org_counts(protein_list, translation_table):
-    '''
-    gets codon and aa counts for whole organism
-    param protein_list: list of each protein coding gene sequence in organism
-    param translation_table: dictionary of 'codon':'AA' key-value pairs
-    '''
-    codon_counts = {}
-    aa_counts = {}
+
+def get_org_counts(protein_list, translation_table):
+    """
+    Gets codon counts for whole organism/list of given proteins
+    :param protein_list: list of each protein coding gene sequence in organism
+    :param translation_table: dictionary of 'codon':'AA' key-value pairs
+    :return dictionary of codon counts
+    """
+
+    codon_counts = {codon: 0 for codon in translation_table.keys()}
+    # for any codon present in org but not present in the passed translation table
+    codon_counts['NNN'] = 0
     for x in protein_list:
         for codon in codon_iter(x):
             # don't include open frame end of gene
             if len(codon) % 3 == 0:
-                # edit to check for ambigus bases with key 'ambig_base'
-                # 4 total in .data file, skipped. make sure to catch when calc right when doing length based calc
-                try:
-                    aa = translation_table[codon]
-                except KeyError:
-                    continue
-
                 try:
                     codon_counts[codon] += 1
                 except KeyError:
-                    codon_counts[codon] = 1
+                    codon_counts['NNN'] += 1
 
-                try:
-                    aa_counts[aa] += 1
-                except KeyError:
-                    aa_counts[aa] = 1
-
-            else:
-                print('Open frame')
-
-    return codon_counts, aa_counts
+    return codon_counts
 
 
-def get_Prot_counts(protein_list, translation_table):
-    '''
-    makes list of dicts of aa_counts in protein from protein_list
-    '''
+def get_protein_counts(protein_list, translation_table):
+    """
+    Makes list of dicts of codon counts in protein from protein_list
+    :param protein_list: list of protein coding DNA sequences
+    :param translation_table: dictionary of 'codon':'AA' key-value pairs
+    :return list of dictionaries, one dict for each protein in protein_list
+    """
+
     protein_counts = []
     for x in protein_list:
-        aa_counts = {}
+        codon_counts = {codon: 0 for codon in translation_table.keys()}
+        # for any codon present in org but not present in the passed translation table
+        codon_counts['NNN'] = 0
         for codon in codon_iter(x):
             # don't include open frame end of gene
             if len(codon) % 3 == 0:
-                # remove
                 try:
-                    aa = translation_table[codon]
+                    codon_counts[codon] += 1
                 except KeyError:
-                    continue
+                    codon_counts['NNN'] += 1
 
-                try:
-                    aa_counts[aa] += 1
-                except KeyError:
-                    aa_counts[aa] = 1
-
-        protein_counts.append(aa_counts)
+        protein_counts.append(codon_counts)
 
     return protein_counts
 
 
+def translate_counts(codon_counts, translation_table):
+    """
+    Translates a list of codon count dictionaries using passed translation table
+    :param codon_counts: list of dicts of codon counts
+    :param translation_table: dictionary of 'codon':'AA' key-value pairs
+    :return: a list of dicts of amino acid counts
+    """
+
+    translated_counts = []
+    for count_dict in codon_counts:
+        aa_counts = {aa: 0 for aa in set(translation_table.values())}
+        # for any codon present in count dict but not present in the passed translation table
+        aa_counts['x'] = 0
+
+        for codon, count in count_dict.items():
+            aa = translation_table.get(codon, 'x')
+            aa_counts[aa] += count
+
+        translated_counts.append(aa_counts)
+
+    return translated_counts
+
+
 def get_GC(codon_frac, aa_counts, translation_table):
-    '''
-    calculates GC for aa_counts dict provided (so for either org, or list of proteins)
-    param codon_frac: dict of codon:prop of codon count to overall codon count for amino acid
-    param aa_counts: dictionary of counts of each amino acid
-    param translation_table: dictionary of 'codon':'AA' key-value pairs
-    '''
+    """
+    Calculates GC for aa_counts dict provided (so for either org, or list of proteins)
+    :param codon_frac: dict of codon:prop of codon count to overall codon count for amino acid
+    :param aa_counts: dictionary of counts of each amino acid
+    :param translation_table: dictionary of 'codon':'AA' key-value pairs
+    :return int; calculated GC
+    """
 
     tt_flip = flip_trans_table(translation_table)
     gc_contrib = {}
@@ -93,7 +114,7 @@ def get_GC(codon_frac, aa_counts, translation_table):
             continue
         codon_gc = []
         for codon in codons:
-            # not every codon in every protein, so some error handling... ew I know
+            # not every codon in every protein, so some error handling
             codon_gc.append((GC(codon) / 100) * (codon_frac[codon]))
 
         gc_contrib[aa] = sum(codon_gc) * (aa_counts[aa] / sum(aa_counts.values()))
@@ -103,11 +124,13 @@ def get_GC(codon_frac, aa_counts, translation_table):
     return wanted_gc
 
 
-def change_counts(codon_counts, translation_table):
-    '''
-    makes dict of codon:fraction this codon contributes to overall codon count for its amino acid
-    param codon_counts: dictionary of codon counts in an organism
-    '''
+def frequentize_counts(codon_counts, translation_table):
+    """
+    Makes dict of codon:<fraction this codon contributes to overall codon count for its amino acid>
+    :param codon_counts: dictionary of codon counts
+    :param translation_table: dictionary of 'codon':'AA' key-value pairs
+    :return dictionary of codon distributions per their respective amino acid
+    """
 
     tt_flip = flip_trans_table(translation_table)
     codon_frac = {}
@@ -115,14 +138,18 @@ def change_counts(codon_counts, translation_table):
         # get total number of codons that translate to given aa
         total_codon = sum([codon_counts[codon] for codon in codons])
         for codon in codons:
-            codon_frac[codon] = codon_counts[codon] / total_codon
+            # since all codons from trans_table initialized, some might add to zero total
+            try:
+                codon_frac[codon] = codon_counts[codon] / total_codon
+            except ZeroDivisionError:
+                codon_frac[codon] = 0
 
     return codon_frac
 
 
 if __name__ == '__main__':
 
-    # verified against ncbi 08Apr2019, plus Chris's exceptins in species.py
+    # verified against ncbi 08Apr2019, plus Chris's exceptions in species.py
     # allow for selenocysteine (TGA=U) (https://en.wikipedia.org/wiki/Selenocysteine)
     # allow for pyrrolysine (TAG=O) (https://en.wikipedia.org/wiki/Pyrrolysine)
     tt_11 = {
@@ -146,12 +173,14 @@ if __name__ == '__main__':
 
     full_cds, cds_list, cds_gc = parse_fasta('CDS.fasta')
 
-    codon_dict, aa_dict = get_Org_counts(cds_list, tt_11)
-    frac_codon = change_counts(codon_dict, tt_11)
+    codon_dict = get_org_counts(cds_list, tt_11)
+    aa_dict = translate_counts([codon_dict], tt_11).pop(0)
+    frac_codon = frequentize_counts(codon_dict, tt_11)
 
-    protein_counts = get_Prot_counts(cds_list, tt_11)
+    protein_counts = get_protein_counts(cds_list, tt_11)
+    protein_aa = translate_counts(protein_counts, tt_11)
 
-    protein_gc = [get_GC(frac_codon, aac, tt_11) for aac in protein_counts]
+    protein_gc = [get_GC(frac_codon, aac, tt_11) for aac in protein_aa]
 
     # print(protein_gc[0:2])
 
