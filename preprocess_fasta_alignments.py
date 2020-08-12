@@ -15,8 +15,7 @@ align_in = r'D:\Orthologs\Ortholog_Codon_Dist\PTHR42792\P04949_ortholog_msa.txt'
 cds_in = r'D:\Orthologs\Ortholog_Codon_Dist\PTHR42792\P04949_ortholog_cds.fna'
 format = 'fasta'
 
-# no dots in file path until file extension
-align_out = align_in.split('.', 1)[0] + '_codon.txt'
+align_out = ''.join(align_in.split('.')[:-1]) + '_codon2.txt'
 
 tt_11 = {
     'ATA': 'I', 'ATC': 'I', 'ATT': 'I', 'ATG': 'M',
@@ -44,29 +43,35 @@ msa_alphabet = AlphabetEncoder(IUPAC.ExtendedIUPACProtein(), '-.')
 # the two fed files should be in the same order (expected if using entire pipeline), allowing for easy indexing
 coding_seqs = list(SeqIO.parse(cds_in, format, alphabet=IUPAC.IUPACUnambiguousDNA()))
 
-out_fh = open(align_out, 'w')
+codon_alignments = []
 for i, alignment in enumerate(AlignIO.read(align_in, format, alphabet=msa_alphabet)):
-    # coding seq id needs split, can be made more general for all fasta later...
-    assert (alignment.id == coding_seqs[i].id.split(';')[0][4:]), "Alignment ID doesn't match coding sequence ID"
+    # coding seq header needs split, can be made more general for all fasta later...
+    cds_header = coding_seqs[i].id
+    assert (alignment.id == cds_header.split(';')[0][4:]), "Alignment ID doesn't match Coding Sequence ID"
     #print(len(alignment.seq))
     #print(len(str(coding_seqs[i].seq)))
 
     # don't need Seq object, just make string to make iterator more clear
     codon_seq = list(codon_iter(str(coding_seqs[i].seq)))
-    print(len(codon_seq))
-    print(codon_seq)
+    #print(len(codon_seq))
+    #print(codon_seq)
     codon_position = 0      # marks where we are in the list of codons
     translated_seq = ''     # translated from aa to DNA
-    j = 1   # counts number of non-gap aa; should end at len(codon_seq)... True will print if it does
     for aa in alignment.seq:
 
         if aa == '.' or aa == '-':
             translated_seq += aa * 3
 
         else:
-            j += 1
-            print(j, codon_position)
-            codon = codon_seq[codon_position]
+            #print(codon_position)
+            # fix later; indicates an alignment seq that is longer than the coding seq
+            try:
+                codon = codon_seq[codon_position]
+            except IndexError:
+                print(alignment.id, cds_header)
+                translated_seq += 'QQQ'
+                continue      # counts how many AA longer align seq is than codon_iter
+                # break
             #print(codon, codon_position * 3)
             # make sure codon isn't an open frame (at end of seq)
             if len(codon) % 3 == 0:
@@ -79,28 +84,27 @@ for i, alignment in enumerate(AlignIO.read(align_in, format, alphabet=msa_alphab
                     else:
                         translated_seq += codon
 
-                    codon_position += 1
-
-                # for when mismatch occurs; get alignment id  and alignment and cds positions
+                # for when mismatch occurs; get alignment id, and alignment and cds positions
                 else:
                     translated_seq += 'NNN'
-                    codon_position += 1
-                    #print('oops')
+                    # print('oops')
 
-            else:
-                codon_position += 1
-
+            codon_position += 1
 
     # check that every codon was properly iterated over; if False, aa.upper() != output (via KeyError or legit mismatch)
-    print(j == len(codon_seq))
-    #print(len(codon_seq) - 1 == codon_position)
+    # number codons (non-gap aa in align seq) = codon_pos + 1
+    print(codon_position == len(codon_seq) - 1)
 
-    out_fh.write('>' + alignment.id + '\n')
-    out_fh.write(translated_seq + '\n')
+    # make gene of interest that will have all genes aligned to it for analysis first
+    if alignment.id in align_in:
+        codon_alignments.insert(0, (cds_header, translated_seq))
+    else:
+        codon_alignments.append((cds_header, translated_seq))
 
-out_fh.close()
-
-
+with open(align_out, 'w') as fh:
+    for header, seq in codon_alignments:
+        fh.write('>' + header + '\n')
+        fh.write(seq + '\n')
 
 
 
