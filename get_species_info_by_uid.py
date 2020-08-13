@@ -155,7 +155,11 @@ if __name__ == "__main__":
         else:
             r = requests.get(embl_base_url + embl_acc)
             cds = ''.join(r.content.decode('utf-8').split("\n")[1:])
-            ortho_mapping[uid].append(cds)
+            # account for any http errors... will remove ortho from data for now
+            if 'status=' in cds:
+                continue
+            else:
+                ortho_mapping[uid].append(cds)
 
     # write cds to file
     # outfile1 = r"D:\Orthologs\Ortholog_Codon_Dist\PTHR42792\P04949_ortholog_cds2.fasta"
