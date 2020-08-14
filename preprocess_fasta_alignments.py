@@ -44,6 +44,7 @@ msa_alphabet = AlphabetEncoder(IUPAC.ExtendedIUPACProtein(), '-.')
 coding_seqs = list(SeqIO.parse(cds_in, format, alphabet=IUPAC.IUPACUnambiguousDNA()))
 
 codon_alignments = []
+found_flag = False
 for i, alignment in enumerate(AlignIO.read(align_in, format, alphabet=msa_alphabet)):
     # coding seq header needs split, can be made more general for all fasta later...
     cds_header = coding_seqs[i].id
@@ -56,11 +57,11 @@ for i, alignment in enumerate(AlignIO.read(align_in, format, alphabet=msa_alphab
     #print(len(codon_seq))
     #print(codon_seq)
     codon_position = 0      # marks where we are in the list of codons
-    translated_seq = ''     # translated from aa to DNA
+    aligned_coding_seq = ''     # translated from aa to DNA
     for aa in alignment.seq:
 
         if aa == '.' or aa == '-':
-            translated_seq += aa * 3
+            aligned_coding_seq += aa * 3
 
         else:
             #print(codon_position)
@@ -69,7 +70,7 @@ for i, alignment in enumerate(AlignIO.read(align_in, format, alphabet=msa_alphab
                 codon = codon_seq[codon_position]
             except IndexError:
                 print(alignment.id, cds_header)
-                translated_seq += 'QQQ'
+                aligned_coding_seq += 'QQQ'
                 continue      # counts how many AA longer align seq is than codon_iter
                 # break
             #print(codon, codon_position * 3)
@@ -80,13 +81,13 @@ for i, alignment in enumerate(AlignIO.read(align_in, format, alphabet=msa_alphab
                 if aa.upper() == trans_aa and trans_aa is not None:
                     # check if aa in lower case
                     if aa.islower():
-                        translated_seq += '...'
+                        aligned_coding_seq += '...'
                     else:
-                        translated_seq += codon
+                        aligned_coding_seq += codon
 
                 # for when mismatch occurs; get alignment id, and alignment and cds positions
                 else:
-                    translated_seq += 'NNN'
+                    aligned_coding_seq += 'NNN'
                     # print('oops')
 
             codon_position += 1
@@ -97,9 +98,14 @@ for i, alignment in enumerate(AlignIO.read(align_in, format, alphabet=msa_alphab
 
     # make gene of interest that will have all genes aligned to it for analysis first
     if alignment.id in align_in:
-        codon_alignments.insert(0, (cds_header, translated_seq))
+        codon_alignments.insert(0, (cds_header, aligned_coding_seq))
+        found_flag = True
     else:
-        codon_alignments.append((cds_header, translated_seq))
+        codon_alignments.append((cds_header, aligned_coding_seq))
+
+# don't write to file if not found
+if not found_flag:
+    exit('Gene of interest not found.')
 
 with open(align_out, 'w') as fh:
     for header, seq in codon_alignments:
