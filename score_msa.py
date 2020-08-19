@@ -1,4 +1,5 @@
 from Bio import AlignIO
+from Bio.SubsMat import MatrixInfo as matlist
 from Bio.Alphabet import IUPAC, AlphabetEncoder
 from codon_dist import codon_iter, flip_trans_table
 import re
@@ -50,66 +51,88 @@ tt_11 = {
 
 tt_flip = flip_trans_table(tt_11)
 
-msa_alphabet = AlphabetEncoder(IUPAC.ExtendedIUPACProtein(), '-.')
+matrix = matlist.blosum62
+# print(matrix)
 
-alignments = list(AlignIO.read(align_in, 'fasta', alphabet=msa_alphabet))
-# gene of interest expected to be first gene in msa file (should be if preprocessed)
-subject = alignments.pop(0)
-subject_codons = list(codon_iter(str(subject.seq)))
+msa_alphabet = AlphabetEncoder(IUPAC.ExtendedIUPACProtein(), '-.')
+alignments = AlignIO.read(align_in, 'fasta', alphabet=msa_alphabet)
 
 uid_pattern = re.compile(r'uid=(\S+?);')
 tax_id_pattern = re.compile(r'tax_id=(\d+)')
 
 # name file with uid of gene of interest as has been convention
-uid = re.search(uid_pattern, subject.id).group(1)
-out_fh = open(os.path.join(outdir, uid) + '_ortholog_msa_scores.data', 'w')
+uid = re.search(uid_pattern, alignments[0].id).group(1)
 
 bad_codons = ['...', '---', 'NNN']    # codons that will not receive scores
 
-for alignment in alignments:
-    header = alignment.id
-    # tax_id needed to obtain files containing source org codon dist... used to obtain frequency score for codon
-    tax_id = re.search(tax_id_pattern, header).group(1)
-    source_codon_dist = fetch_org_distribution(tax_id, source_org_dir)
+# identity scores for columns
+out_fh = open(os.path.join(outdir, uid) + '_ortholog_msa_ID_scores.data', 'w')
+for i in range(0, alignments.get_alignment_length(), 3):
+    column = alignments[:, i:i+3]
+    total_rows = len(alignments)
+    aa_counts = {'x': 0}    # initialize with error aa
+    # print(column)
 
-    alignment_codons = list(codon_iter(str(alignment.seq)))
-    freq_scores = ''
-    conserv_scores = ''
-
-    # alignments all same length, so enumerate can be used
-    for i, codon in enumerate(alignment_codons):
-        # placeholder no-score value for gaps and ambiguous codons
-        #if codon in bad_codons or subject_codons[i] in bad_codons:
-        if codon in bad_codons:     # assumes both msa's gaps are 1:1; tested, true so far
-            conserv_scores += 'x'
-            freq_scores += 'x'
+    for codon in column:
+        # count error codon
+        if codon.seq in bad_codons:
+            aa_counts['x'] += 1
             continue
 
-        # 1 if aa is conserved from subject (synonymous codons), 0 if not
-        aa = tt_11[codon]
-        if aa == tt_11[subject_codons[i]]:
-            conserv_scores += '1'
-        else:
-            conserv_scores += '0'
+        aa = tt_11[str(codon.seq)]
+        try:
+            aa_counts[aa] += 1
+        except KeyError:
+            aa_counts[aa] = 1
 
-        # 1 for frequent codons, 0 for rare/infrequent (when comparing the otho's source org codon dist to uniform dist)
-        codon_count = len(tt_flip[aa])      # counts number of codons per aa to get uniform dist below
-        if source_codon_dist[codon] >= (1/codon_count):
-            freq_scores += '1'
-        else:
-            freq_scores += '0'
+    # print(aa_counts)
+    keymax = max(aa_counts, key=aa_counts.get)  # most common aa in column
+    identity = (keymax, aa_counts[keymax] / total_rows)
+    # check if column with error as max is also the only codon at that position
+    if identity[0] == 'x' and identity[1] != 1.0:
+        print(False)
 
-    out_fh.write('>' + header + '\n')
-    out_fh.write(str(alignment.seq) + '\n')
-    out_fh.write(conserv_scores + '\n' + freq_scores + '\n')
-
-
-    #print(conserv_scores)
-    print(conserv_scores.count('1')/(conserv_scores.count('1') + conserv_scores.count('0')))
-    #print(freq_scores)
-    #break
+    out_fh.write(str(identity))
 
 out_fh.close()
 
 
+'''
+# using blosum62 to score columns
+total_rows = len(alignments)
+num_comparisons = (total_rows-1)*total_rows / 2     # number of pairwise comparisons used to get column avg
+out_fh = open(os.path.join(outdir, uid) + '_ortholog_msa_column_scores.data', 'w')
+for i in range(0, alignments.get_alignment_length(), 3):
+    column = alignments[:, i:i+3]
+    running_score = 0
+    for j, codon1 in enumerate(column):
+        # print(j)
+        # temp to test rest of code
+        if codon1.seq in bad_codons:
+            aa1 = tt_11["ATG"]
+        else:
+            aa1 = tt_11[str(codon1.seq)]
+        
+        # get every alignment below current one in column
+        for k in range(j+1, total_rows):
+            codon2 = str(column[k].seq)
+            if codon2 in bad_codons:
+                aa2 = tt_11['ATG']
+            else:
+                aa2 = tt_11[codon2]
+
+            # all aa in matrix, but matrix isn't mirrored in dict, so try mirror of original key
+            try:
+                score = matrix[aa1, aa2]
+            except KeyError:
+                score = matrix[aa2, aa1]
+                
+            running_score += score
+            # print(j, k)
+
+    column_avg = running_score / num_comparisons
+    out_fh.write(str(column_avg) + ', ')
+
+out_fh.close()
+'''
 
