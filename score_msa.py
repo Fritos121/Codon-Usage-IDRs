@@ -5,6 +5,8 @@ from codon_dist import codon_iter, flip_trans_table
 import re
 import os
 
+
+# implement next
 def fetch_org_distribution(taxonomy_id, base_dir):
     """
     Creates codon distribution for a given organism found in the given directory
@@ -49,7 +51,7 @@ tt_11 = {
     'TGC': 'C', 'TGT': 'C', 'TGA': 'U', 'TGG': 'W',
 }
 
-tt_flip = flip_trans_table(tt_11)
+tt_flip = flip_trans_table(tt_11)   # still needed?
 
 matrix = matlist.blosum62
 # print(matrix)
@@ -68,10 +70,9 @@ bad_codons = ['...', '---', 'NNN']    # codons that will not receive scores
 # identity scores for columns
 out_fh = open(os.path.join(outdir, uid) + '_ortholog_msa_ID_scores.data', 'w')
 for i in range(0, alignments.get_alignment_length(), 3):
-    column = alignments[:, i:i+3]
+    column = alignments[:, i:i+3]   # get MSA object with just the first column, size of one codon
     total_rows = len(alignments)
     aa_counts = {'x': 0}    # initialize with error aa
-    # print(column)
 
     for codon in column:
         # count error codon
@@ -88,7 +89,8 @@ for i in range(0, alignments.get_alignment_length(), 3):
     # print(aa_counts)
     keymax = max(aa_counts, key=aa_counts.get)  # most common aa in column
     identity = (keymax, aa_counts[keymax] / total_rows)
-    # check if column with error as max is also the only codon at that position
+
+    # check if column with error as max is also the only codon at that position, deal with later
     if identity[0] == 'x' and identity[1] != 1.0:
         print(False)
 
@@ -97,29 +99,29 @@ for i in range(0, alignments.get_alignment_length(), 3):
 out_fh.close()
 
 
-'''
-# using blosum62 to score columns
-total_rows = len(alignments)
-num_comparisons = (total_rows-1)*total_rows / 2     # number of pairwise comparisons used to get column avg
+# use blosum62 matrix to score columns
 out_fh = open(os.path.join(outdir, uid) + '_ortholog_msa_column_scores.data', 'w')
 for i in range(0, alignments.get_alignment_length(), 3):
     column = alignments[:, i:i+3]
+    column = [codon for codon in column if codon.seq not in bad_codons]     # filter out rows rows with no info
+    total_rows = len(column)    # number of seqs in column
+
+    # if no informational codons exist in column
+    if total_rows == 0:
+        out_fh.write('X, ')   # not number b/c scoring matrix
+        continue
+
+    num_comparisons = (total_rows - 1) * total_rows / 2  # number of pairwise comparisons used to get column avg
     running_score = 0
+
     for j, codon1 in enumerate(column):
-        # print(j)
         # temp to test rest of code
-        if codon1.seq in bad_codons:
-            aa1 = tt_11["ATG"]
-        else:
-            aa1 = tt_11[str(codon1.seq)]
+        aa1 = tt_11[str(codon1.seq)]
         
         # get every alignment below current one in column
         for k in range(j+1, total_rows):
             codon2 = str(column[k].seq)
-            if codon2 in bad_codons:
-                aa2 = tt_11['ATG']
-            else:
-                aa2 = tt_11[codon2]
+            aa2 = tt_11[codon2]
 
             # all aa in matrix, but matrix isn't mirrored in dict, so try mirror of original key
             try:
@@ -128,11 +130,10 @@ for i in range(0, alignments.get_alignment_length(), 3):
                 score = matrix[aa2, aa1]
                 
             running_score += score
-            # print(j, k)
 
     column_avg = running_score / num_comparisons
     out_fh.write(str(column_avg) + ', ')
 
 out_fh.close()
-'''
+
 
