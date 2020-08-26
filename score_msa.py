@@ -1,20 +1,21 @@
 from Bio import AlignIO
 from Bio.SubsMat import MatrixInfo as matlist
 from Bio.Alphabet import IUPAC, AlphabetEncoder
-from codon_dist import codon_iter, flip_trans_table
+from codon_dist import flip_trans_table
 import re
 import os
 
 
-# implement next
 def fetch_org_distribution(taxonomy_id, base_dir):
     """
-    Creates codon distribution for a given organism found in the given directory
+    Creates codon distribution for a given organism found in the given directory.
+    Distributions files are expected to be in csv format, each line formatted as: codon, frequency
     :param taxonomy_id: string; NCBI tax_id
     :param base_dir: directory where folders named by tax_id are stored
     :return: dictionary of codons paired with their frequency in their aa codon distribution
     """
     import glob
+
     # add empty string to trick join to add one more set of filepath delimiters
     org_dir = os.path.join(base_dir, taxonomy_id, '')
     # grabs 1st csv file (should be only one if using whole pipeline)
@@ -51,7 +52,7 @@ tt_11 = {
     'TGC': 'C', 'TGT': 'C', 'TGA': 'U', 'TGG': 'W',
 }
 
-tt_flip = flip_trans_table(tt_11)   # still needed?
+tt_flip = flip_trans_table(tt_11)
 
 matrix = matlist.blosum62
 # print(matrix)
@@ -74,13 +75,13 @@ for i in range(0, alignments.get_alignment_length(), 3):
     total_rows = len(alignments)
     aa_counts = {'x': 0}    # initialize with error aa
 
-    for codon in column:
+    for row in column:
         # count error codon
-        if codon.seq in bad_codons:
+        if row.seq in bad_codons:
             aa_counts['x'] += 1
             continue
 
-        aa = tt_11[str(codon.seq)]
+        aa = tt_11[str(row.seq)]
         try:
             aa_counts[aa] += 1
         except KeyError:
@@ -113,11 +114,24 @@ for i in range(0, alignments.get_alignment_length(), 3):
 
     num_comparisons = (total_rows - 1) * total_rows / 2  # number of pairwise comparisons used to get column avg
     running_score = 0
+    running_freq_score = 0
 
-    for j, codon1 in enumerate(column):
-        # temp to test rest of code
-        aa1 = tt_11[str(codon1.seq)]
-        
+    for j, row in enumerate(column):
+        codon1 = str(row.seq)
+        aa1 = tt_11[codon1]
+
+        # get frequency score for codon
+        header = row.id
+        tax_id = re.search(tax_id_pattern, header).group(1)
+        source_codon_dist = fetch_org_distribution(tax_id, source_org_dir)
+
+        # 1 for frequent codons, 0 for rare/infrequent (when comparing the otho's source org codon dist to uniform dist)
+        codon_count = len(tt_flip[aa1])
+        if source_codon_dist[codon1] >= (1 / codon_count):
+            running_freq_score += 1
+        else:
+            pass
+
         # get every alignment below current one in column
         for k in range(j+1, total_rows):
             codon2 = str(column[k].seq)
@@ -131,9 +145,34 @@ for i in range(0, alignments.get_alignment_length(), 3):
                 
             running_score += score
 
-    column_avg = running_score / num_comparisons
-    out_fh.write(str(column_avg) + ', ')
+    blosum_avg = running_score / num_comparisons
+    avg_freq_score = running_freq_score / total_rows
+
+    column_info = (blosum_avg, avg_freq_score)
+    out_fh.write(str(column_info) + ', ')
 
 out_fh.close()
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
 
 
