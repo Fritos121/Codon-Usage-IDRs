@@ -6,7 +6,7 @@ from Bio import Entrez
 from time import sleep
 import re
 import requests
-import sys
+import argparse
 
 
 def get_protein_info(uniprot_ids):
@@ -103,47 +103,27 @@ def get_assembly_id(tx_id):
 
 if __name__ == "__main__":
 
-    # ensure proper command line arguments are passed.
-    if len(sys.argv) != 4:
-        exit("Required positional arguments: {} <infile> <outfile1> <outfile2>".format(sys.argv[0]))
+    parser = argparse.ArgumentParser()
+    parser.add_argument('infile', type=argparse.FileType('r'), help="Fasta file containing protein uids in header")
+    parser.add_argument("outfile", type=argparse.FileType('w'), help="Name of fasta file to write coding seqs to")
+    ftp = parser.add_argument_group('ftp', 'Optional arguments Used to create csv file with partial ftp links')
+    ftp.add_argument("-f", "--ftp_out", type=argparse.FileType('w'), help="Filename for csv file with partial ftp links")
+    ftp.add_argument('-e', '--email', help='Email address required to use during Entrez lookups')
 
-    infile = sys.argv[1]
-    outfile1 = sys.argv[2]
-    outfile2 = sys.argv[3]
+    args = parser.parse_args()
+    in_fh = args.infile
+    fasta_fh = args.outfile
+    csv_fh = args.ftp_out
+    email = args.email
 
-    in_fh = open(infile)
+    if csv_fh and not email:
+        exit('Email address required to use Entrez. Please provide a valid email address.')
 
     # get list of uids
     uids = [x.strip().replace(">", "") for x in in_fh.readlines() if x.startswith(">")]
 
-    Entrez.email = 'mlowry2@mymail.vcu.edu'
-
-    # uids = ['A0NAQ1', 'A8DWE3']
     embl_accessions, tax_ids, ortho_mapping = get_protein_info(uids)
     # print(embl_accessions, tax_ids)
-
-    # remove placeholder Nones
-    tax_ids = [x for x in tax_ids if x is not None]
-    unique_tax_ids = list(set(tax_ids))
-
-    # get partial ftp links to be used by get_assembly_seqs_from_ftp.py
-    ftp_pattern = re.compile(r"<FtpPath_RefSeq>\S+(/genomes\S+GCF_\S+)<")
-    ftp_partials = []
-    missing_ftp = []
-    for i, tax_id in enumerate(unique_tax_ids):
-        assembly_id = get_assembly_id(tax_id)
-        handle = Entrez.esummary(db='assembly', id=assembly_id, report='full')
-        string = handle.read().decode("utf-8")  # for WSL
-        # string = handle.read()
-        # print(string)
-
-        # gets ftp (partial) link for all cds in organism
-        ftp_link = get_match(ftp_pattern, string, missing_ftp, unique_tax_ids, i)
-        ftp_partials.append((ftp_link, tax_id))
-        sleep(0.4)  # prevent timeouts from ncbi
-
-    if missing_ftp:
-        print('\n{} Proteins Missing FTP Link for Assembly: '.format(len(missing_ftp)) + ', '.join(missing_ftp))
 
     # embl_acc, uids, and tax_ids should have same length
     # get CDS for gene
@@ -155,25 +135,53 @@ if __name__ == "__main__":
         else:
             r = requests.get(embl_base_url + embl_acc)
             cds = ''.join(r.content.decode('utf-8').split("\n")[1:])
-            ortho_mapping[uid].append(cds)
+            # account for any http errors... will remove ortho from data for now; write uid info to std error?
+            if 'status=' in cds:
+                print('\n', uid, "removed from orthologs due to error.")
+                del ortho_mapping[uid]
+            else:
+                ortho_mapping[uid].append(cds)
 
     # write cds to file
-    # outfile1 = r"D:\Orthologs\Ortholog_Codon_Dist\PTHR42792\P04949_ortholog_cds2.fasta"
-    with open(outfile1, 'w') as fh:
-        for uid, info in ortho_mapping.items():
-            if uid is None or None in info:
-                continue
+    for uid, info in ortho_mapping.items():
+        # do not write any ortholog with incomplete information
+        if uid is None or None in info:
+            continue
 
-            else:
-                fh.write(">uid=" + uid + ";embl_acc=" + info[0] + ";tax_id=" + info[1] + "\n")
-                fh.write(info[2] + "\n")
+        else:
+            fasta_fh.write(">uid=" + uid + ";embl_acc=" + info[0] + ";tax_id=" + info[1] + "\n")
+            fasta_fh.write(info[2] + "\n")
 
-    # write to csv file
-    # outfile2 = r"D:\Orthologs\Ortholog_Codon_Dist\PTHR42792\P04949_ortholog_links.csv"
-    with open(outfile2, 'w') as fh:
+    # only run if argument passed in CLI
+    if csv_fh:
+        Entrez.email = email
+        # remove placeholder Nones
+        tax_ids = [x for x in tax_ids if x is not None]
+        unique_tax_ids = list(set(tax_ids))
+
+        # get partial ftp links to be used by get_assembly_seqs_from_ftp.py
+        ftp_pattern = re.compile(r"<FtpPath_RefSeq>\S+(/genomes\S+GCF_\S+)<")
+        ftp_partials = []
+        missing_ftp = []
+        for i, tax_id in enumerate(unique_tax_ids):
+            assembly_id = get_assembly_id(tax_id)
+            handle = Entrez.esummary(db='assembly', id=assembly_id, report='full')
+            string = handle.read().decode("utf-8")  # for WSL
+            # string = handle.read()
+            # print(string)
+
+            # gets ftp (partial) link for all cds in organism
+            ftp_link = get_match(ftp_pattern, string, missing_ftp, unique_tax_ids, i)
+            ftp_partials.append((ftp_link, tax_id))
+            sleep(0.4)  # prevent timeouts from ncbi
+
+        if missing_ftp:
+            print('\n{} Proteins Missing FTP Link for Assembly: '.format(len(missing_ftp)) + ', '.join(missing_ftp))
+
+        # write to csv file
         for link, tax_id in ftp_partials:
-            fh.write(link + ', ' + tax_id + '\n')
+            csv_fh.write(link + ', ' + tax_id + '\n')
 
-    # print(len(ftp_partials), ftp_partials)
+        # print(len(ftp_partials), ftp_partials)
 
 

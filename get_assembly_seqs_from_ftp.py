@@ -21,6 +21,7 @@ def unzip_gz(file_name):
 
 if __name__ == "__main__":
 
+    # ensure proper command line arguments are passed.
     if len(sys.argv) != 3:
         exit("Required positional arguments: {} <infile> <base_directory>".format(sys.argv[0]))
 

@@ -18,7 +18,6 @@ def parse_fasta(file_handle):
     return uids, cds_list
 
 
-# use argparse
 parser = argparse.ArgumentParser()
 parser.add_argument("infile", type=argparse.FileType('r'), help="fasta file from get_species_info_by_uid.py")
 parser.add_argument("target_directory", help="directory to store output files")
