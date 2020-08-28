@@ -95,7 +95,7 @@ for i in range(0, alignments.get_alignment_length(), 3):
     if identity[0] == 'x' and identity[1] != 1.0:
         print(False)
 
-    out_fh.write(str(identity))
+    out_fh.write(str(identity) + ', ')
 
 out_fh.close()
 
@@ -109,7 +109,8 @@ for i in range(0, alignments.get_alignment_length(), 3):
 
     # if no informational codons exist in column
     if total_rows == 0:
-        out_fh.write('X, ')   # not number b/c scoring matrix
+        column_info = ('X', 'X')
+        out_fh.write(str(column_info) + ', ')
         continue
 
     num_comparisons = (total_rows - 1) * total_rows / 2  # number of pairwise comparisons used to get column avg
@@ -152,27 +153,5 @@ for i in range(0, alignments.get_alignment_length(), 3):
     out_fh.write(str(column_info) + ', ')
 
 out_fh.close()
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
 
 
