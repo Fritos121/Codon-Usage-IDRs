@@ -69,48 +69,18 @@ uid = re.search(uid_pattern, alignments[0].id).group(1)
 bad_codons = ['...', '---', 'NNN']    # codons that will not receive scores
 
 # identity scores for columns
-out_fh = open(os.path.join(outdir, uid) + '_ortholog_msa_ID_scores.data', 'w')
+out_fh = open(os.path.join(outdir, uid) + '_ortholog_msa_scores2.data', 'w')
+out_fh.write("Identity,Percent Identity,Avg Blosum62 Score,Avg Frequency Score,Fraction Aligned\n")
 for i in range(0, alignments.get_alignment_length(), 3):
     column = alignments[:, i:i+3]   # get MSA object with just the first column, size of one codon
-    total_rows = len(alignments)
+    column = [codon for codon in column if codon.seq not in bad_codons]  # filter out rows with no info
+    total_rows = len(column)
     aa_counts = {'x': 0}    # initialize with error aa
-
-    for row in column:
-        # count error codon
-        if row.seq in bad_codons:
-            aa_counts['x'] += 1
-            continue
-
-        aa = tt_11[str(row.seq)]
-        try:
-            aa_counts[aa] += 1
-        except KeyError:
-            aa_counts[aa] = 1
-
-    # print(aa_counts)
-    keymax = max(aa_counts, key=aa_counts.get)  # most common aa in column
-    identity = (keymax, aa_counts[keymax] / total_rows)
-
-    # check if column with error as max is also the only codon at that position, deal with later
-    if identity[0] == 'x' and identity[1] != 1.0:
-        print(False)
-
-    out_fh.write(str(identity) + ', ')
-
-out_fh.close()
-
-
-# use blosum62 matrix to score columns
-out_fh = open(os.path.join(outdir, uid) + '_ortholog_msa_column_scores.data', 'w')
-for i in range(0, alignments.get_alignment_length(), 3):
-    column = alignments[:, i:i+3]
-    column = [codon for codon in column if codon.seq not in bad_codons]     # filter out rows rows with no info
-    total_rows = len(column)    # number of seqs in column
 
     # if no informational codons exist in column
     if total_rows == 0:
-        column_info = ('X', 'X')
-        out_fh.write(str(column_info) + ', ')
+        column_info = "X,X,X,X,X"    # an X for every value recorded per column
+        out_fh.write(column_info + '\n')
         continue
 
     num_comparisons = (total_rows - 1) * total_rows / 2  # number of pairwise comparisons used to get column avg
@@ -118,12 +88,22 @@ for i in range(0, alignments.get_alignment_length(), 3):
     running_freq_score = 0
 
     for j, row in enumerate(column):
+        # count the aa for the row
         codon1 = str(row.seq)
-        aa1 = tt_11[codon1]
+        aa1 = ''
+        if codon1 in bad_codons:
+            aa_counts['x'] += 1     # count error codon
+
+        else:
+            aa1 = tt_11[codon1]
+            try:
+                aa_counts[aa1] += 1
+            except KeyError:
+                aa_counts[aa1] = 1
 
         # get frequency score for codon
-        header = row.id
-        tax_id = re.search(tax_id_pattern, header).group(1)
+        # header = row.id
+        tax_id = re.search(tax_id_pattern, row.id).group(1)
         source_codon_dist = fetch_org_distribution(tax_id, source_org_dir)
 
         # 1 for frequent codons, 0 for rare/infrequent (when comparing the otho's source org codon dist to uniform dist)
@@ -133,8 +113,8 @@ for i in range(0, alignments.get_alignment_length(), 3):
         else:
             pass
 
-        # get every alignment below current one in column
-        for k in range(j+1, total_rows):
+        # get every row below current one in column
+        for k in range(j + 1, total_rows):
             codon2 = str(column[k].seq)
             aa2 = tt_11[codon2]
 
@@ -143,15 +123,31 @@ for i in range(0, alignments.get_alignment_length(), 3):
                 score = matrix[aa1, aa2]
             except KeyError:
                 score = matrix[aa2, aa1]
-                
+
             running_score += score
 
+    # calculate identity score for column
+    # print(aa_counts)
+    identity = max(aa_counts, key=aa_counts.get)  # most common aa in column
+    percent_id = aa_counts[identity] / total_rows
+    fraction_aligned = (total_rows - aa_counts['x']) / total_rows  # fraction of rows in column that fail to align
+    if fraction_aligned < 1:
+        print(fraction_aligned)
+
+    # check if column with error as max is also the only codon at that position, deal with later
+    if identity[0] == 'x' and identity[1] != 1.0:
+        print(False)
+
+    # calculate blosum62 score for column
     blosum_avg = running_score / num_comparisons
     avg_freq_score = running_freq_score / total_rows
 
-    column_info = (blosum_avg, avg_freq_score)
-    out_fh.write(str(column_info) + ', ')
+    # use write_csv for clarity?
+    out_fh.write(str(identity) + ',' + str(percent_id) + ',' + str(blosum_avg) + ',' + str(avg_freq_score) + ',' +
+                 str(fraction_aligned) + '\n')
 
 out_fh.close()
+
+
 
 
