@@ -1,7 +1,8 @@
 from Bio import AlignIO
 from Bio.SubsMat import MatrixInfo as matlist
 from Bio.Alphabet import IUPAC, AlphabetEncoder
-from codon_dist import flip_trans_table
+from codon_dist import flip_trans_table, codon_iter
+from vsl2 import run_vsl2b
 import re
 import os
 
@@ -63,13 +64,36 @@ alignments = AlignIO.read(align_in, 'fasta', alphabet=msa_alphabet)
 uid_pattern = re.compile(r'uid=(\S+?);')
 tax_id_pattern = re.compile(r'tax_id=(\d+)')
 
-# name file with uid of gene of interest as has been convention
+# name file with uid of gene of interest as has been convention; expects it to be the first gene in the msa
 uid = re.search(uid_pattern, alignments[0].id).group(1)
 
 bad_codons = ['...', '---', 'NNN']    # codons that will not receive scores
 
+# get disorder for each sequence in the msa
+# make this a function later
+disorder_info = []      # list of disorder score strings for each seq in msa (with gaps)
+for alignment in alignments:
+    aa_seq = ''
+    bad_indexes = []
+    for i, codon in enumerate(codon_iter(alignment.seq)):
+        if codon in bad_codons:     # save location of bad codon
+            bad_indexes.append(i)
+        else:
+            aa = tt_11[codon]
+            aa_seq += aa
+
+    disorder_list = list(run_vsl2b(aa_seq)[-1])     # last item returned is tuple of disorder score by residue
+
+    # at these indexes, need to insert char to keep disorder scores registered with alignment
+    for index in bad_indexes:
+        disorder_list.insert(index, '-')       # insert - b/c . is used to indicate ordered residue
+
+    disorder_scores = ''.join(disorder_list)
+    disorder_info.append(disorder_scores)
+
+
 out_fh = open(os.path.join(outdir, uid) + '_ortholog_msa_scores2.data', 'w')
-out_fh.write("Identity,Percent Identity,Avg Blosum62 Score,Avg Frequency Score,Fraction Aligned\n")
+out_fh.write("Identity,Percent Identity,Avg Blosum62 Score,Avg Frequency Score,Fraction Aligned,Fraction Disordered\n")
 
 # calculate information for each column in alignment
 for i in range(0, alignments.get_alignment_length(), 3):
@@ -77,9 +101,10 @@ for i in range(0, alignments.get_alignment_length(), 3):
     total_rows = len(column)
     aa_counts = {'x': 0}    # initialize with error aa
 
-    running_score = 0
+    running_blosum_score = 0
     running_freq_score = 0
-    good_rows = 0       # count how many rows were used in blosum and freq scoring
+    disorder_count = 0
+    good_rows = 0       # count how many rows were used in blosum, freq, and disorder scoring
 
     for j, row in enumerate(column):
         codon1 = str(row.seq)
@@ -95,8 +120,14 @@ for i in range(0, alignments.get_alignment_length(), 3):
             except KeyError:
                 aa_counts[aa1] = 1
 
-        # get frequency score for codon
         good_rows += 1
+
+        # get disorder score for codon; j = row, i = column in codon seq, i//3 = column in aa seq
+        dis_score = disorder_info[j][i//3]
+        if dis_score == 'D':
+            disorder_count += 1
+
+        # get frequency score for codon
         tax_id = re.search(tax_id_pattern, row.id).group(1)
         source_codon_dist = fetch_org_distribution(tax_id, source_org_dir)
 
@@ -121,26 +152,29 @@ for i in range(0, alignments.get_alignment_length(), 3):
             except KeyError:
                 score = matrix[aa2, aa1]
 
-            running_score += score
+            running_blosum_score += score
 
     # if no informational codons exist in column, or most common aa is an error
     identity = max(aa_counts, key=aa_counts.get)  # most common aa in column
     if good_rows == 0 or identity == 'x':
-        out_fh.write("X,X,X,X,X" + '\n')    # an X for every value recorded per column
+        out_fh.write("X,X,X,X,X,X\n")    # an X for every value recorded per column
         continue
 
     # calculate percent identity for column and fraction of column aligned properly
     percent_id = aa_counts[identity] / good_rows    # only want the identity of good columns
     fraction_aligned = good_rows / total_rows  # fraction of rows in column that fail to align
 
+    # fraction of good rows that were disordered
+    fraction_disordered = disorder_count / good_rows
+
     # calculate avg blosum62 and freq scores for column
     num_comparisons = (good_rows - 1) * good_rows / 2  # number of pairwise comparisons used to get column avg
-    blosum_avg = running_score / num_comparisons
+    blosum_avg = running_blosum_score / num_comparisons
     avg_freq_score = running_freq_score / good_rows
 
     # use write_csv for clarity?
     out_fh.write(str(identity) + ',' + str(percent_id) + ',' + str(blosum_avg) + ',' + str(avg_freq_score) + ',' +
-                 str(fraction_aligned) + '\n')
+                 str(fraction_aligned) + ',' + str(fraction_disordered) + '\n')
 
 out_fh.close()
 
