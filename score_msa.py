@@ -156,7 +156,7 @@ for i in range(0, alignments.get_alignment_length(), 3):
 
     # if no informational codons exist in column, or most common aa is an error
     identity = max(aa_counts, key=aa_counts.get)  # most common aa in column
-    if good_rows == 0 or identity == 'x':
+    if good_rows == 0:
         out_fh.write("X,X,X,X,X,X\n")    # an X for every value recorded per column
         continue
 
