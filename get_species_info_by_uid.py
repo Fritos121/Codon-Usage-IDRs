@@ -42,10 +42,10 @@ def get_protein_info(uniprot_ids):
         orthos_map[uniprot_ids[i]] = [embl_acc, taxonomy_id]  # map protein info to its uid
 
     if missing_embl:
-        print('\n{} Proteins Missing EMBL Accession Numbers: '.format(len(missing_embl)) + ', '.join(missing_embl))
+        print('\n{} Protein(s) Missing EMBL Accession Number: '.format(len(missing_embl)) + ', '.join(missing_embl))
 
     if missing_taxid:
-        print('\n{} Proteins Missing NCBI TaxIDs: '.format(len(missing_taxid)) + ', '.join(missing_taxid))
+        print('\n{} Protein(s) Missing NCBI TaxID: '.format(len(missing_taxid)) + ', '.join(missing_taxid))
 
     return embl_accs, taxonomy_ids, orthos_map
 
@@ -63,21 +63,17 @@ def get_match(pattern, search_str, id_list, missing_list, index):
     :return: Either the wanted pattern found (string), OR appends to list if error and returns placeholder None
     """
 
-    match = re.search(pattern, search_str)
-    try:
-        if len(match.groups()) == 1:
-            wanted_item = match.group(1)
-        else:
-            wanted_item = match.groups()
+    match = re.findall(pattern, search_str)
+    match = [x for x in match if x != '-']  # embl_acc are '-' if no Genomic DNA translation available
 
-    except AttributeError:
+    if len(match) == 0:
         missing_list.append(id_list[index])
         # add placeholder value to keep indexing between refseq and uid 1:1, zipped later
         return None
 
     else:
-        # print(wanted_item)
-        return wanted_item
+        # grab first embl_acc from list
+        return match[0]
 
 
 def get_assembly_id(tx_id):
@@ -176,7 +172,7 @@ if __name__ == "__main__":
             sleep(0.4)  # prevent timeouts from ncbi
 
         if missing_ftp:
-            print('\n{} Proteins Missing FTP Link for Assembly: '.format(len(missing_ftp)) + ', '.join(missing_ftp))
+            print('\n{} Protein(s) Missing FTP Link for Assembly: '.format(len(missing_ftp)) + ', '.join(missing_ftp))
 
         # write to csv file
         for link, tax_id in ftp_partials:
