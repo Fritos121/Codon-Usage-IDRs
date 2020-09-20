@@ -27,18 +27,19 @@ tt_11 = {
 
 infile = r"D:\Orthologs\ecoli_gene_family_map_allortho.csv"
 
+# get list of uids
 in_fh = open(infile, 'r')
 uids = [x.split(',')[0] for x in in_fh.readlines()]
 # uids = ['P0AAJ3', 'A0NAQ1']
 in_fh.close()
 
-# get list of uids
-embl_accessions, tax_ids, ortho_mapping = get_protein_info(uids)
+ortho_mapping = get_protein_info(uids)
 
-# embl_acc, uids, and tax_ids should have same length
-# get CDS for gene
+out_fh = open(r'D:\Orthologs\ecoli_gene_disorder_ranked.csv', 'w')
 embl_base_url = "https://www.ebi.ac.uk/ena/browser/api/fasta/"
-for uid, embl_acc in zip(uids, embl_accessions):
+for uid, info in ortho_mapping.items():
+    embl_acc = info[0]
+    # dont want any gene where a coding sequence cannot be retrieved
     if embl_acc is None:
         continue
 
@@ -47,40 +48,25 @@ for uid, embl_acc in zip(uids, embl_accessions):
         cds = ''.join(r.content.decode('utf-8').split("\n")[1:])
         # account for any http errors... will remove ortho from data for now; write uid info to std error?
         if 'status=' in cds or len(cds) == 0:
-            print(uid, "removed from gene list due to error.")
-            del ortho_mapping[uid]
+            print(uid, "removed from gene list due to error in retrieving coding sequence.")
+            continue
+
         else:
-            ortho_mapping[uid].append(cds)
+            aa_seq = ''
+            bad_aa = 0
+            for i, codon in enumerate(codon_iter(cds)):
+                if len(codon) % 3 == 0:
+                    aa = try_translate(codon, tt_11)
+                    # dont add to seq fed into vsl2, but count
+                    if aa is None:
+                        bad_aa += 1
+                    else:
+                        aa_seq += aa
 
+            disorder_list = run_vsl2b(aa_seq)[-1]
 
-disorder_scores = []
-# use vsl to get disorder for each gene
-for uid, info in ortho_mapping.items():
-    # do not score any gene without a uid or cds
-    # print(uid, info[2])
-    if uid is None or info[2] is None:
-        continue
+            # add count of bad aa so that proper fraction can be calculated
+            fraction_disorder = disorder_list.count('D') / (len(disorder_list) + bad_aa)
+            out_fh.write(uid + ',' + str(fraction_disorder) + '\n')
 
-    else:
-        aa_seq = ''
-        bad_aa = 0
-        for i, codon in enumerate(codon_iter(info[2])):
-            if len(codon) % 3 == 0:
-                aa = try_translate(codon, tt_11)
-                # dont add to seq fed into vsl2, but count
-                if aa is None:
-                    bad_aa += 1
-                else:
-                    aa_seq += aa
-
-        disorder_list = run_vsl2b(aa_seq)[-1]
-
-        # add count of bad aa so that proper fraction can be calculated
-        fraction_disorder = disorder_list.count('D')/(len(disorder_list) + bad_aa)
-        disorder_scores.append((uid, fraction_disorder))
-
-# disorder_scores.sort(key=lambda x: x[1], reverse=True)    # no need to sort.. can sort in excel
-
-with open(r'D:\Orthologs\ecoli_gene_disorder_ranked.csv', 'w') as fh:
-    for uid, frac in disorder_scores:
-        fh.write(uid + ',' + str(frac) + '\n')
+out_fh.close()
