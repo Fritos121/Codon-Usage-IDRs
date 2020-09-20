@@ -25,6 +25,7 @@ tt_11 = {
         'TGC': 'C', 'TGT': 'C', 'TGA': 'A', 'TGG': 'W',
     }
 
+# expects csv file, each line starting with the UniprotID
 infile = r"D:\Orthologs\ecoli_gene_family_map_allortho.csv"
 
 # get list of uids
@@ -35,7 +36,7 @@ in_fh.close()
 
 ortho_mapping = get_protein_info(uids)
 
-out_fh = open(r'D:\Orthologs\ecoli_gene_disorder_ranked.csv', 'w')
+out_fh = open(r'D:\Orthologs\ecoli_gene_disorder.csv', 'w')
 embl_base_url = "https://www.ebi.ac.uk/ena/browser/api/fasta/"
 for uid, info in ortho_mapping.items():
     embl_acc = info[0]
