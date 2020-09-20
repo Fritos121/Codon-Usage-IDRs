@@ -13,13 +13,11 @@ def get_protein_info(uniprot_ids):
     """
     Retrieves EMBL accession numbers and taxonomy ids for list of proteins. Creates a dict to map each protein's
     uid to its EMBL accession number and tax id.
-    :param uniprot_ids: List of Uniprot IDs, e.g., "A5HYD5"
-    :return: List of EMBL accession numbers, list of taxonmy ids, and dictionary mapping each uid to its info
+    :param uniprot_ids: List of Uniprot IDs, e.g., ['P0AAJ3', 'A0NAQ1']
+    :return: dictionary mapping each uid to its info
     """
     from bioservices import UniProt
 
-    embl_accs = []
-    taxonomy_ids = []
     missing_embl = []
     missing_taxid = []
     orthos_map = {}
@@ -34,11 +32,8 @@ def get_protein_info(uniprot_ids):
     for i, record in enumerate(uniprot_records):
         # record = "fffffffffffffffffff"    # test placeholder Nones
 
-        embl_acc = get_match(embl_pattern, record, uniprot_ids, missing_embl, i)
-        taxonomy_id = get_match(taxid_pattern, record, uniprot_ids, missing_taxid, i)
-
-        embl_accs.append(embl_acc)  # EMBL accession number for coding seq
-        taxonomy_ids.append(taxonomy_id)  # tax_id of organism protein belongs to
+        embl_acc = get_match(embl_pattern, record, uniprot_ids, missing_embl, i)  # EMBL accession number for coding seq
+        taxonomy_id = get_match(taxid_pattern, record, uniprot_ids, missing_taxid, i)  # tax_id of organism protein belongs to
         orthos_map[uniprot_ids[i]] = [embl_acc, taxonomy_id]  # map protein info to its uid
 
     if missing_embl:
@@ -47,7 +42,7 @@ def get_protein_info(uniprot_ids):
     if missing_taxid:
         print('\n{} Protein(s) Missing NCBI TaxID: '.format(len(missing_taxid)) + ', '.join(missing_taxid))
 
-    return embl_accs, taxonomy_ids, orthos_map
+    return orthos_map
 
 
 # keep generic function even though only len() == 1 used in main()
@@ -118,41 +113,33 @@ if __name__ == "__main__":
     # get list of uids
     uids = [x.strip().replace(">", "") for x in in_fh.readlines() if x.startswith(">")]
 
-    embl_accessions, tax_ids, ortho_mapping = get_protein_info(uids)
-    # print(embl_accessions, tax_ids)
+    ortho_mapping = get_protein_info(uids)
 
-    # embl_acc, uids, and tax_ids should have same length
-    # get CDS for gene
+    # get CDS for gene and write all info to fasta file
     embl_base_url = "https://www.ebi.ac.uk/ena/browser/api/fasta/"
-    for uid, embl_acc in zip(uids, embl_accessions):
-        if embl_acc is None:
+    for uid, info in ortho_mapping.items():
+        embl_acc = info[0]
+        # dont want to keep any ortho with incomplete info
+        if None in info:
             continue
 
         else:
             r = requests.get(embl_base_url + embl_acc)
             cds = ''.join(r.content.decode('utf-8').split("\n")[1:])
             # account for any http errors... will remove ortho from data for now; write uid info to std error?
-            if 'status=' in cds:
-                print('\n', uid, "removed from orthologs due to error.")
-                del ortho_mapping[uid]
+            if 'status=' in cds or len(cds) == 0:
+                print(uid, "removed from orthologs due to error in retrieving coding sequence.")
+                continue
+
             else:
-                ortho_mapping[uid].append(cds)
-
-    # write cds to file
-    for uid, info in ortho_mapping.items():
-        # do not write any ortholog with incomplete information
-        if uid is None or None in info:
-            continue
-
-        else:
-            fasta_fh.write(">uid=" + uid + ";embl_acc=" + info[0] + ";tax_id=" + info[1] + "\n")
-            fasta_fh.write(info[2] + "\n")
+                fasta_fh.write(">uid=" + uid + ";embl_acc=" + info[0] + ";tax_id=" + info[1] + "\n")
+                fasta_fh.write(cds + "\n")
 
     # only run if argument passed in CLI
     if csv_fh:
         Entrez.email = email
         # remove placeholder Nones
-        tax_ids = [x for x in tax_ids if x is not None]
+        tax_ids = [x[1] for x in ortho_mapping.values() if x[1] is not None]
         unique_tax_ids = list(set(tax_ids))
 
         # get partial ftp links to be used by get_assembly_seqs_from_ftp.py
@@ -163,7 +150,7 @@ if __name__ == "__main__":
             assembly_id = get_assembly_id(tax_id)
             handle = Entrez.esummary(db='assembly', id=assembly_id, report='full')
             string = handle.read().decode("utf-8")  # for WSL
-            # string = handle.read()
+            # string = handle.read()    # Pycharm
             # print(string)
 
             # gets ftp (partial) link for all cds in organism
