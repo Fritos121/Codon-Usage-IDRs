@@ -1,25 +1,11 @@
 import os
 import argparse
 import codon_dist as cd
-
-
-def parse_fasta(file_handle):
-    uids = []
-    cds_list = []
-    for line in file_handle:
-        if line.startswith('>'):
-            uid = line.split(';')[0][5:]
-            uids.append(uid)
-
-        else:
-            seq = line.strip()
-            cds_list.append(seq)
-
-    return uids, cds_list
+from Bio import SeqIO
 
 
 parser = argparse.ArgumentParser()
-parser.add_argument("infile", type=argparse.FileType('r'), help="fasta file from get_species_info_by_uid.py")
+parser.add_argument("infile", type=argparse.FileType('r'), help="fasta file")
 parser.add_argument("target_directory", help="directory to store output files")
 output = parser.add_mutually_exclusive_group(required=True)
 output.add_argument("-o", "--outfile", help="name of output file")
@@ -31,7 +17,9 @@ infile = args.infile
 target_dir = args.target_directory
 outfile = args.outfile
 
-uids, coding_seqs = parse_fasta(infile)
+# parse fasta file
+records = list(SeqIO.parse(infile, 'fasta'))
+coding_seqs = [record.seq for record in records]
 
 # verified against ncbi 08Apr2019, plus Chris's exceptions in species.py
 # allow for selenocysteine (TGA=U) (https://en.wikipedia.org/wiki/Selenocysteine)
@@ -58,6 +46,7 @@ tt_11 = {
 # get list of dicts that count codon occurrences in cds
 codon_dists = []
 if args.multi_out:
+    uids = [record.id.split(';')[0][4:] for record in records]  # get uid from get_species_info_by_uid.py fna file
     print(len(coding_seqs), "output files will be created")
     codon_counts = cd.get_protein_counts(coding_seqs, tt_11)
 
@@ -75,7 +64,7 @@ try:
 except OSError:
     pass
 
-# uid and distribution indexing should still line up from original fasta parsing
+# uid and distribution indexing should still line up from original fasta parsing for multi-out
 # create csv file(s) to store distributions
 for i, dist in enumerate(codon_dists):
     if args.multi_out:
