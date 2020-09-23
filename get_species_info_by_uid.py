@@ -45,7 +45,7 @@ def get_protein_info(uniprot_ids):
     return orthos_map
 
 
-# keep generic function even though only len() == 1 used in main()
+# rework/remove function
 def get_match(pattern, search_str, id_list, missing_list, index):
     """
     Find first match using RegEx; Allows for tracking of what IDs can't get the specific pattern match and placeholders
@@ -63,31 +63,40 @@ def get_match(pattern, search_str, id_list, missing_list, index):
 
     if len(match) == 0:
         missing_list.append(id_list[index])
-        # add placeholder value to keep indexing between refseq and uid 1:1, zipped later
+        # add placeholder value to keep indexing between refseq and uid 1:1, zipped later   useless comment now?
         return None
 
     else:
-        # grab first embl_acc from list
+        # grab first from list
         return match[0]
 
 
-def get_assembly_id(tx_id):
+def get_assembly_id(tax_id):
     """
     Retrieves NCBI Assembly ID for a given NCBI Taxonomy ID. Email for Entrez must be set in main().
-    :param tx_id: string; NCBI tax id
+    :param tax_id: string; NCBI tax id
     :return: string; NCBI Assembly ID
     """
-    search_term = 'txid{}'.format(tx_id)  # search term format used by NCBI Genome db
+    search_term = 'txid{}'.format(tax_id)  # search term format used by NCBI Genome db
     handle1 = Entrez.esearch(db='genome', term=search_term) # gets internal ID for genome in genome db
     record1 = Entrez.read(handle1)
     # print(record1)
-    org_id = record1['IdList'][0]    # what if there are more than 1... not encountered yet so don't worry
-    # print(org_id)
+    # if no info could be pulled for taxid, don't want this gene... do try/except instead?
+    if record1["Count"] == '0':
+        return None
+    else:
+        org_id = record1['IdList'][0]    # what if there are more than 1... not encountered yet so don't worry
+        # print(org_id)
+
     handle2 = Entrez.esummary(db='genome', id=org_id) # gives assembly of genome org
     record2 = Entrez.read(handle2)
     # print(record2)
-    assem_id = record2[0]["AssemblyID"]
-    # print(assem_id)
+    # if nothing returned from database (results in empty list)
+    if not record2:
+        return None
+    else:
+        assem_id = record2[0]["AssemblyID"]
+        # print(assem_id)
 
     return assem_id
 
@@ -115,6 +124,53 @@ if __name__ == "__main__":
 
     ortho_mapping = get_protein_info(uids)
 
+    # only run if argument passed in CLI
+    if csv_fh:
+        Entrez.email = email
+        # remove placeholder Nones
+        tax_ids = [x[1] for x in ortho_mapping.values() if x[1] is not None]
+        unique_tax_ids = list(set(tax_ids))
+
+        # get partial ftp links to be used by get_assembly_seqs_from_ftp.py
+        ftp_pattern = re.compile(r"<FtpPath_RefSeq>\S+(/genomes\S+GCF_\S+)<")
+        ftp_partials = []
+        missing_ftp = []
+        for i, tax_id in enumerate(unique_tax_ids):
+            assembly_id = get_assembly_id(tax_id)
+            if assembly_id is None:
+                missing_ftp.append(tax_id)
+                continue
+
+            handle = Entrez.esummary(db='assembly', id=assembly_id, report='full')
+            string = handle.read().decode("utf-8")  # for WSL
+            # string = handle.read()    # Pycharm
+            # print(string)
+
+            # gets ftp (partial) link for all cds in organism
+            print(i)
+            print(unique_tax_ids[i], '\n')
+            ftp_link = get_match(ftp_pattern, string, unique_tax_ids, missing_ftp, i)   # rework/remove function
+            if ftp_link is None:
+                continue    # already added to list by get_match()
+            else:
+                ftp_partials.append((ftp_link, tax_id))
+
+            sleep(0.4)  # prevent timeouts from ncbi
+
+        if missing_ftp:
+            print('\n{} Protein(s) Missing FTP Link for Assembly: '.format(len(missing_ftp)) + ', '.join(missing_ftp))
+
+        # replace tax_id with None for orthos that belong to orgs with unavailable assembly/ftp info (removed later)
+        for info in ortho_mapping.values():
+            if info[1] in missing_ftp:
+                info[1] = None
+
+        # write to csv file
+        for link, tax_id in ftp_partials:
+            csv_fh.write(link + ', ' + tax_id + '\n')
+
+        # print(len(ftp_partials), ftp_partials)
+
     # get CDS for gene and write all info to fasta file
     embl_base_url = "https://www.ebi.ac.uk/ena/browser/api/fasta/"
     for uid, info in ortho_mapping.items():
@@ -134,37 +190,3 @@ if __name__ == "__main__":
             else:
                 fasta_fh.write(">uid=" + uid + ";embl_acc=" + info[0] + ";tax_id=" + info[1] + "\n")
                 fasta_fh.write(cds + "\n")
-
-    # only run if argument passed in CLI
-    if csv_fh:
-        Entrez.email = email
-        # remove placeholder Nones
-        tax_ids = [x[1] for x in ortho_mapping.values() if x[1] is not None]
-        unique_tax_ids = list(set(tax_ids))
-
-        # get partial ftp links to be used by get_assembly_seqs_from_ftp.py
-        ftp_pattern = re.compile(r"<FtpPath_RefSeq>\S+(/genomes\S+GCF_\S+)<")
-        ftp_partials = []
-        missing_ftp = []
-        for i, tax_id in enumerate(unique_tax_ids):
-            assembly_id = get_assembly_id(tax_id)
-            handle = Entrez.esummary(db='assembly', id=assembly_id, report='full')
-            string = handle.read().decode("utf-8")  # for WSL
-            # string = handle.read()    # Pycharm
-            # print(string)
-
-            # gets ftp (partial) link for all cds in organism
-            ftp_link = get_match(ftp_pattern, string, missing_ftp, unique_tax_ids, i)
-            ftp_partials.append((ftp_link, tax_id))
-            sleep(0.4)  # prevent timeouts from ncbi
-
-        if missing_ftp:
-            print('\n{} Protein(s) Missing FTP Link for Assembly: '.format(len(missing_ftp)) + ', '.join(missing_ftp))
-
-        # write to csv file
-        for link, tax_id in ftp_partials:
-            csv_fh.write(link + ', ' + tax_id + '\n')
-
-        # print(len(ftp_partials), ftp_partials)
-
-
