@@ -13,11 +13,12 @@ def try_translate(codon, translation_table):
 
 if __name__ == '__main__':
 
-    align_in = r'D:\Orthologs\Ortholog_Codon_Dist\PTHR42792\P04949_ortholog_msa.txt'
-    cds_in = r'D:\Orthologs\Ortholog_Codon_Dist\PTHR42792\P04949_ortholog_cds.fna'
+    align_in = r'D:\Orthologs\Ortholog_Codon_Dist\2PTHR42792\P04949_ortholog_msa.txt'
+    cds_in = r'D:\Orthologs\Ortholog_Codon_Dist\2PTHR42792\P04949_ortholog_cds.fna'
+    error_in = r'D:\Orthologs\Ortholog_Codon_Dist\2PTHR42792\removed_uids.txt'
     format = 'fasta'
 
-    align_out = ''.join(align_in.split('.')[:-1]) + '_codon2.txt'
+    align_out = ''.join(align_in.split('.')[:-1]) + '_codon.txt'
 
     tt_11 = {
         'ATA': 'I', 'ATC': 'I', 'ATT': 'I', 'ATG': 'M',
@@ -38,19 +39,32 @@ if __name__ == '__main__':
         'TGC': 'C', 'TGT': 'C', 'TGA': 'U', 'TGG': 'W',
     }
 
+    # get list of uids that had errors; used to prevent assert errors
+    error_fh = open(error_in, 'r')
+    error_uids = [line.strip() for line in error_fh.readlines()]
+    error_fh.close()
+
     # check if alphabet required in long run... later
     # adds gap both gap characters seen in PANTHER msa
     msa_alphabet = AlphabetEncoder(IUPAC.ExtendedIUPACProtein(), '-.')
 
-    # the two fed files should be in the same order (expected if using entire pipeline), allowing for easy indexing
+    # the cds and alignment files should be in the same order except for uids in error file, allowing for easy indexing
     coding_seqs = list(SeqIO.parse(cds_in, format, alphabet=IUPAC.IUPACUnambiguousDNA()))
 
     codon_alignments = []
     found_flag = False
-    for i, alignment in enumerate(AlignIO.read(align_in, format, alphabet=msa_alphabet)):
+    i = 0
+    for alignment in AlignIO.read(align_in, format, alphabet=msa_alphabet):
+        # if uid is one that errored previously, then it was removed from the cds file
+        if alignment.id in error_uids:
+            continue  # don't increment i if error found; should realign files
+
         # coding seq header needs split, can be made more general for all fasta later...
         cds_header = coding_seqs[i].id
-        assert (alignment.id == cds_header.split(';')[0][4:]), "Alignment ID doesn't match Coding Sequence ID"
+        cds_uid = cds_header.split(';')[0][4:]
+        # any uids not in error list that don't match corresponding entry in cds file crash out
+        assert (alignment.id == cds_uid), "Alignment ID: " + alignment.id + " doesn't match Coding Sequence ID: " + cds_uid
+
         #print(len(alignment.seq))
         #print(len(str(coding_seqs[i].seq)))
 
@@ -96,7 +110,8 @@ if __name__ == '__main__':
 
         # check that every codon was properly iterated over; if False, aa.upper() != output (via KeyError or legit mismatch)
         # number codons (non-gap aa in align seq) = codon_pos + 1
-        print(codon_position == len(codon_seq) - 1)
+        if not (codon_position == len(codon_seq) - 1):
+            print(False)
 
         # make gene of interest that will have all genes aligned to it for analysis first
         if alignment.id in align_in:
@@ -104,6 +119,8 @@ if __name__ == '__main__':
             found_flag = True
         else:
             codon_alignments.append((cds_header, aligned_coding_seq))
+
+        i += 1
 
     # don't write to file if not found
     if not found_flag:
