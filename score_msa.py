@@ -31,9 +31,9 @@ def fetch_org_distribution(taxonomy_id, base_dir):
 
 
 if __name__ == '__main__':
-    align_in = r'D:\Orthologs\Ortholog_Codon_Dist\PTHR42792\P04949_ortholog_msa_codon3.txt'
+    align_in = r'D:\Orthologs\Ortholog_Codon_Dist\PTHR30560\P0A850_ortholog_msa_codon.txt'
     source_org_dir = r'D:\Orthologs\Source_Org_Codon_Dist'
-    outdir = r'D:\Orthologs\Ortholog_Codon_Dist\PTHR42792'
+    outdir = r'D:\Orthologs\Ortholog_Codon_Dist\PTHR30560'
 
     tt_11 = {
         'ATA': 'I', 'ATC': 'I', 'ATT': 'I', 'ATG': 'M',
@@ -83,6 +83,7 @@ if __name__ == '__main__':
                 aa = tt_11[codon]
                 aa_seq += aa
 
+        print(len(aa_seq), alignment.id)
         disorder_list = list(run_vsl2b(aa_seq)[-1])     # last item returned is tuple of disorder score by residue
 
         # at these indexes, need to insert char to keep disorder scores registered with alignment
