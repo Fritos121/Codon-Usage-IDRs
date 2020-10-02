@@ -35,8 +35,8 @@ if __name__ == '__main__':
     source_org_dir = r'D:\Orthologs\Source_Org_Codon_Dist'
     outdir = r'D:\Orthologs\Ortholog_Codon_Dist\PTHR30560'
 
-    # remove non-standard AAs so that vsl2 can run properly... use this tt for all in pipeline?
-    # TAA, TAG, and TGA all changed to A
+    # don't want to remove non-standard aa here b/c tt_11 used for freq calc
+    # making those codons A will change the distribution of Alanine performed later
     tt_11 = {
         'ATA': 'I', 'ATC': 'I', 'ATT': 'I', 'ATG': 'M',
         'ACA': 'T', 'ACC': 'T', 'ACG': 'T', 'ACT': 'T',
@@ -52,8 +52,8 @@ if __name__ == '__main__':
         'GGA': 'G', 'GGC': 'G', 'GGG': 'G', 'GGT': 'G',
         'TCA': 'S', 'TCC': 'S', 'TCG': 'S', 'TCT': 'S',
         'TTC': 'F', 'TTT': 'F', 'TTA': 'L', 'TTG': 'L',
-        'TAC': 'Y', 'TAT': 'Y', 'TAA': 'A', 'TAG': 'A',
-        'TGC': 'C', 'TGT': 'C', 'TGA': 'A', 'TGG': 'W',
+        'TAC': 'Y', 'TAT': 'Y', 'TAA': '_', 'TAG': 'O',
+        'TGC': 'C', 'TGT': 'C', 'TGA': 'U', 'TGG': 'W',
     }
 
     tt_flip = flip_trans_table(tt_11)
@@ -62,7 +62,8 @@ if __name__ == '__main__':
     # print(matrix)
 
     msa_alphabet = AlphabetEncoder(IUPAC.ExtendedIUPACProtein(), '-.')
-    alignments = AlignIO.read(align_in, 'fasta', alphabet=msa_alphabet)
+    alignments = AlignIO.read(align_in, 'fasta', alphabet=msa_alphabet)     # need to make list when getting len()
+    # print(len(alignments))   # number of orthologs use in final msa; another function in module will do this?
 
     uid_pattern = re.compile(r'uid=(\S+?);')
     tax_id_pattern = re.compile(r'tax_id=(\d+)')
@@ -82,6 +83,10 @@ if __name__ == '__main__':
         for i, codon in enumerate(codon_iter(alignment.seq)):
             if codon in bad_codons:     # save location of bad codon
                 bad_indexes.append(i)
+
+            elif codon in ['TAA', 'TAG', 'TGA']:    # remove non-standard AAs so that vsl2 can run properly, make it A
+                aa_seq += 'A'
+
             else:
                 aa = tt_11[codon]
                 aa_seq += aa
