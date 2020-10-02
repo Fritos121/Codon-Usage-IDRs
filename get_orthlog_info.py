@@ -12,12 +12,12 @@ import platform
 
 p = Panther()
 # list of dicts; get persistant_ids for alignments we want to keep
-family = 'PTHR42792'
+family = 'PTHR30560'
 family_msa = p.get_family_msa(family)
 
 # can get ortho info from Allorthologs file instead... didnt have it at time of making script
 # interested in list of dicts using 'mapped' key; orthologs of given gene in given org
-gene = 'P04949' # ['P04949']
+gene = 'P0A850' # ['P04949']
 ortho = p.get_ortholog(gene, '83333')
 
 # if multiple genes from same org used, unmapped might be populated
@@ -32,19 +32,35 @@ else:
 uniprotKB_id = re.compile(r".*?\|UniProtKB=(.*)")
 ortho_mapping = {}  # maps ortholog persistent ids to its respective uid
 print(len(family_msa))
+
+missing_target_persis_id = []
 for x in ortho['mapped']:
     # print(x)
     match = re.search(uniprotKB_id, x['target_gene'])
     uid = match.group(1)
-    pid = x['target_persistent_id']
+
+    # can be obtained by searching target_gene manually in Panther db... go to end of tree msa
+    # make function if target_gene or id have same issue. make error out if exceeding certain number of errors?
+    try:
+        pid = x['target_persistent_id']
+    except KeyError:
+        # pid = input("\nSearch " + uid + " in Panther db and enter Persistent ID from end of Tree: ")
+        missing_target_persis_id.append(uid)
+        continue
+
     ortho_mapping[pid] = uid
+
 # adds the gene of interest to ortho_mapping so its information is included in later analysis and processing
 else:
     uid = x['id']
     pid = x['persistent_id']
     ortho_mapping[pid] = uid
 
-#print(ortho_mapping)
+if missing_target_persis_id:
+    print('\n{} Ortholog(s) Missing Target Persistent ID: '.format(len(missing_target_persis_id))
+          + ', '.join(missing_target_persis_id))
+
+# print(ortho_mapping)
 
 # get alignments for all orthologs in family (all orthologs in family, but not all genes in family are orthologs)
 orthos_msa = [alignment for alignment in family_msa if alignment['persistent_id'] in ortho_mapping.keys()]

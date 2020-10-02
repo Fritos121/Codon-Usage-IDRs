@@ -31,10 +31,12 @@ def fetch_org_distribution(taxonomy_id, base_dir):
 
 
 if __name__ == '__main__':
-    align_in = r'D:\Orthologs\Ortholog_Codon_Dist\PTHR42792\P04949_ortholog_msa_codon3.txt'
+    align_in = r'D:\Orthologs\Ortholog_Codon_Dist\PTHR30560\P0A850_ortholog_msa_codon.txt'
     source_org_dir = r'D:\Orthologs\Source_Org_Codon_Dist'
-    outdir = r'D:\Orthologs\Ortholog_Codon_Dist\PTHR42792'
+    outdir = r'D:\Orthologs\Ortholog_Codon_Dist\PTHR30560'
 
+    # don't want to remove non-standard aa here b/c tt_11 used for freq calc
+    # making those codons A will change the distribution of Alanine performed later
     tt_11 = {
         'ATA': 'I', 'ATC': 'I', 'ATT': 'I', 'ATG': 'M',
         'ACA': 'T', 'ACC': 'T', 'ACG': 'T', 'ACT': 'T',
@@ -60,7 +62,8 @@ if __name__ == '__main__':
     # print(matrix)
 
     msa_alphabet = AlphabetEncoder(IUPAC.ExtendedIUPACProtein(), '-.')
-    alignments = AlignIO.read(align_in, 'fasta', alphabet=msa_alphabet)
+    alignments = AlignIO.read(align_in, 'fasta', alphabet=msa_alphabet)     # need to make list when getting len()
+    # print(len(alignments))   # number of orthologs use in final msa; another function in module will do this?
 
     uid_pattern = re.compile(r'uid=(\S+?);')
     tax_id_pattern = re.compile(r'tax_id=(\d+)')
@@ -72,29 +75,37 @@ if __name__ == '__main__':
 
     # get disorder for each sequence in the msa
     # make this a function later
-    disorder_info = []      # list of disorder score strings for each seq in msa (with gaps)
+    disorder_strength = []        # list of numerical disorder strength score for each aa seq in msa (with gaps)
+    disorder_letters = []       # list of disorder score letters for each seq in msa (with gaps)
     for alignment in alignments:
         aa_seq = ''
         bad_indexes = []
         for i, codon in enumerate(codon_iter(alignment.seq)):
             if codon in bad_codons:     # save location of bad codon
                 bad_indexes.append(i)
+
+            elif codon in ['TAA', 'TAG', 'TGA']:    # remove non-standard AAs so that vsl2 can run properly, make it A
+                aa_seq += 'A'
+
             else:
                 aa = tt_11[codon]
                 aa_seq += aa
 
-        disorder_list = list(run_vsl2b(aa_seq)[-1])     # last item returned is tuple of disorder score by residue
+        # print(len(aa_seq), alignment.id)
+        scores, letters = run_vsl2b(aa_seq)[2:4]    # last item returned is tuple of disorder score by residue
+        letters = list(letters)      # needs to be list not tuple
 
         # at these indexes, need to insert char to keep disorder scores registered with alignment
         for index in bad_indexes:
-            disorder_list.insert(index, '-')       # insert - b/c . is used to indicate ordered residue
+            scores.insert(index, '-')       # insert - b/c . is used to indicate ordered residue
+            letters.insert(index, '-')
 
-        disorder_scores = ''.join(disorder_list)
-        disorder_info.append(disorder_scores)
+        disorder_strength.append(scores)
+        disorder_letters.append(letters)
 
-    out_fh = open(os.path.join(outdir, uid) + '_ortholog_msa_scores.data', 'w')
-    out_fh.write("Identity,Percent Identity,Avg Blosum62 Score,Avg Frequency Score,"
-                 "Fraction Aligned,Fraction Disordered\n")
+    out_fh = open(os.path.join(outdir, uid) + '_ortholog_msa_scores2.data', 'w')
+    out_fh.write("Identity,Percent Identity,Avg Blosum62 Score,Avg Frequency Score,Fraction Aligned,"
+                 "Fraction Disordered,Avg Disorder Strength,Avg Frequency Ratio\n")
 
     # calculate information for each column in alignment
     for i in range(0, alignments.get_alignment_length(), 3):
@@ -104,8 +115,10 @@ if __name__ == '__main__':
 
         running_blosum_score = 0
         running_freq_score = 0
+        freq_ratio_sum = 0
         disorder_count = 0
-        good_rows = 0       # count how many rows were used in blosum, freq, and disorder scoring
+        disorder_strength_sum = 0
+        good_rows = 0       # count how many rows were used in scoring
 
         for j, row in enumerate(column):
             codon1 = str(row.seq)
@@ -124,20 +137,28 @@ if __name__ == '__main__':
             good_rows += 1
 
             # get disorder score for codon; j = row, i = column in codon seq, i//3 = column in aa seq
-            dis_score = disorder_info[j][i//3]
-            if dis_score == 'D':
+            dis_letter = disorder_letters[j][i//3]
+            if dis_letter == 'D':
                 disorder_count += 1
+
+            # same deal here but it is a float, add together to eventually get avg
+            dis_score = disorder_strength[j][i//3]
+            disorder_strength_sum += dis_score
 
             # get frequency score for codon
             tax_id = re.search(tax_id_pattern, row.id).group(1)
             source_codon_dist = fetch_org_distribution(tax_id, source_org_dir)
 
-            # 1 for frequent codons, 0 for rare/infrequent (when comparing the otho's source org codon dist to uniform dist)
-            codon_count = len(tt_flip[aa1])
-            if source_codon_dist[codon1] >= (1 / codon_count):
+            # 1 for frequent codons, 0 for rare/infrequent
+            observed_freq = source_codon_dist[codon1]       # otho's source org codon dist
+            expected_freq = (1 / len(tt_flip[aa1]))         # uniform dist
+            if observed_freq >= expected_freq:
                 running_freq_score += 1
             else:
                 pass
+
+            # using observed / expected to get freq score; if
+            freq_ratio_sum += observed_freq / expected_freq
 
             # get every row below current one in column
             for k in range(j + 1, total_rows):
@@ -158,24 +179,27 @@ if __name__ == '__main__':
         # if no informational codons exist in column, or most common aa is an error
         identity = max(aa_counts, key=aa_counts.get)  # most common aa in column
         if good_rows == 0:
-            out_fh.write("X,X,X,X,X,X\n")    # an X for every value recorded per column
+            out_fh.write("X,X,X,X,X,X,X,X\n")    # an X for every value recorded per column
             continue
 
         # calculate percent identity for column and fraction of column aligned properly
         percent_id = aa_counts[identity] / good_rows    # only want the identity of good columns
         fraction_aligned = good_rows / total_rows  # fraction of rows in column that fail to align
 
-        # fraction of good rows that were disordered
+        # calculate fraction of good rows that were disordered, and avg disorder strength of good rows in column
         fraction_disordered = disorder_count / good_rows
+        avg_disorder_strength = disorder_strength_sum / good_rows
 
         # calculate avg blosum62 and freq scores for column
         num_comparisons = (good_rows - 1) * good_rows / 2  # number of pairwise comparisons used to get column avg
         blosum_avg = running_blosum_score / num_comparisons
         avg_freq_score = running_freq_score / good_rows
+        avg_freq_ratio = freq_ratio_sum / good_rows
 
         # use write_csv for clarity?
         out_fh.write(str(identity) + ',' + str(percent_id) + ',' + str(blosum_avg) + ',' + str(avg_freq_score) + ',' +
-                     str(fraction_aligned) + ',' + str(fraction_disordered) + '\n')
+                     str(fraction_aligned) + ',' + str(fraction_disordered) + ',' + str(avg_disorder_strength) + ',' +
+                     str(avg_freq_ratio) + '\n')
 
     out_fh.close()
 
