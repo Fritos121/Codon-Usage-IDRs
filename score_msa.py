@@ -31,10 +31,25 @@ def fetch_org_distribution(taxonomy_id, base_dir):
     return codon_dist
 
 
+def calc_freq_score(aa, observed, flipped_tt):
+    """
+    Score a codon as either 1 or 0 for frequent and rare/infrequent, respectively. Uses uniform codon dist as expected.
+    :param aa: amino codon translates to
+    :param observed: frequency of codon from its source organism codon dist
+    :return:
+    """
+    freq_observed = observed
+    freq_expected = (1 / len(flipped_tt[aa]))  # uniform dist
+    if freq_observed >= freq_expected:
+        return 1
+    else:
+        return 0
+
+
 if __name__ == '__main__':
-    align_in = r'D:\Orthologs\Ortholog_Codon_Dist\PTHR30560\P0A850_ortholog_msa_codon.txt'
+    align_in = r'D:\Orthologs\Ortholog_Codon_Dist\PTHR43553\P33941_ortholog_msa_codon.txt'
     source_org_dir = r'D:\Orthologs\Source_Org_Codon_Dist'
-    outdir = r'D:\Orthologs\Ortholog_Codon_Dist\PTHR30560'
+    outdir = r'D:\Orthologs\Ortholog_Codon_Dist\PTHR43553'
 
     # don't want to remove non-standard aa here b/c tt_11 used for freq calc
     # making those codons A will change the distribution of Alanine performed later
@@ -104,10 +119,9 @@ if __name__ == '__main__':
         disorder_strength.append(scores)
         disorder_letters.append(letters)
 
-    out_fh = open(os.path.join(outdir, uid) + '_ortholog_msa_scores2.data', 'w')
+    out_fh = open(os.path.join(outdir, uid) + '_ortholog_msa_scores3.data', 'w')
     out_fh.write("Identity,Percent Identity,Avg Blosum62 Score,Avg Frequency Score,Fraction Aligned,"
-                 "Fraction Disordered,Avg Disorder Strength,Avg Frequency Ratio,Log Avg Frequency Ratio,"
-                 "Avg Log Odds Frequency\n")
+                 "Fraction Disordered,Avg Disorder Strength,Avg Frequency Ratio,Avg Log Odds Frequency\n")
 
     # calculate information for each column in alignment
     for i in range(0, alignments.get_alignment_length(), 3):
@@ -152,15 +166,15 @@ if __name__ == '__main__':
             tax_id = re.search(tax_id_pattern, row.id).group(1)
             source_codon_dist = fetch_org_distribution(tax_id, source_org_dir)
 
-            # 1 for frequent codons, 0 for rare/infrequent
-            observed_freq = source_codon_dist[codon1]       # otho's source org codon dist
-            expected_freq = (1 / len(tt_flip[aa1]))         # uniform dist
-            if observed_freq >= expected_freq:
-                running_freq_score += 1
-            else:
-                pass
+            # new freq score with expected for entire column given aa and codon dist
+            observed_freq = source_codon_dist[codon1]
+            expected_freq = sum([calc_freq_score(aa1, source_codon_dist[codon], tt_flip) * source_codon_dist[codon]
+                                 for codon in tt_flip[aa1]])
 
-            # using observed / expected to get freq score; if
+            # 1 for frequent codons, 0 for rare/infrequent
+            running_freq_score += calc_freq_score(aa1, observed_freq, tt_flip)
+
+            # using observed / expected to as another score
             freq_ratio_sum += observed_freq / expected_freq
 
             # use log (ln) odds to get freq score
@@ -184,8 +198,8 @@ if __name__ == '__main__':
 
         # if no informational codons exist in column, or most common aa is an error
         identity = max(aa_counts, key=aa_counts.get)  # most common aa in column
-        if good_rows == 0:
-            out_fh.write("X,X,X,X,X,X,X,X,X,X\n")    # an X for every value recorded per column
+        if good_rows == 0 or identity == 'x':
+            out_fh.write("X,X,X,X,X,X,X,X,X\n")    # an X for every value recorded per column
             continue
 
         # calculate percent identity for column and fraction of column aligned properly
@@ -201,13 +215,12 @@ if __name__ == '__main__':
         blosum_avg = running_blosum_score / num_comparisons
         avg_freq_score = running_freq_score / good_rows
         avg_freq_ratio = freq_ratio_sum / good_rows
-        log_avg_freq_ratio = np.log(freq_ratio_sum / good_rows)
         avg_log_odds_freq = freq_log_odds_sum / good_rows
 
         # use write_csv for clarity?
         out_fh.write(str(identity) + ',' + str(percent_id) + ',' + str(blosum_avg) + ',' + str(avg_freq_score) + ',' +
                      str(fraction_aligned) + ',' + str(fraction_disordered) + ',' + str(avg_disorder_strength) + ',' +
-                     str(avg_freq_ratio) + ',' + str(log_avg_freq_ratio) + ',' + str(avg_log_odds_freq) + '\n')
+                     str(avg_freq_ratio) + ',' + str(avg_log_odds_freq) + '\n')
 
     out_fh.close()
 
