@@ -12,12 +12,12 @@ import platform
 
 p = Panther()
 # list of dicts; get persistant_ids for alignments we want to keep
-family = 'PTHR30560'
+family = 'PTHR43553'
 family_msa = p.get_family_msa(family)
 
 # can get ortho info from Allorthologs file instead... didnt have it at time of making script
 # interested in list of dicts using 'mapped' key; orthologs of given gene in given org
-gene = 'P0A850' # ['P04949']
+gene = 'P33941' # ['P04949']
 ortho = p.get_ortholog(gene, '83333')
 
 # if multiple genes from same org used, unmapped might be populated
@@ -57,7 +57,7 @@ else:
     ortho_mapping[pid] = uid
 
 if missing_target_persis_id:
-    print('\n{} Ortholog(s) Missing Target Persistent ID: '.format(len(missing_target_persis_id))
+    print('\n{} Ortholog(s) Removed Due To Missing Target Persistent ID: '.format(len(missing_target_persis_id))
           + ', '.join(missing_target_persis_id))
 
 # print(ortho_mapping)
