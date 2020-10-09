@@ -106,7 +106,8 @@ if __name__ == '__main__':
 
     out_fh = open(os.path.join(outdir, uid) + '_ortholog_msa_scores2.data', 'w')
     out_fh.write("Identity,Percent Identity,Avg Blosum62 Score,Avg Frequency Score,Fraction Aligned,"
-                 "Fraction Disordered,Avg Disorder Strength,Avg Frequency Ratio,Avg Log Odds Frequency\n")
+                 "Fraction Disordered,Avg Disorder Strength,Avg Frequency Ratio,Log Avg Frequency Ratio,"
+                 "Avg Log Odds Frequency\n")
 
     # calculate information for each column in alignment
     for i in range(0, alignments.get_alignment_length(), 3):
@@ -163,7 +164,7 @@ if __name__ == '__main__':
             freq_ratio_sum += observed_freq / expected_freq
 
             # use log (ln) odds to get freq score
-            freq_log_odds_sum += np.log(observed_freq) / np.log(expected_freq)
+            freq_log_odds_sum += np.log(observed_freq / expected_freq)
 
             # get every row below current one in column
             for k in range(j + 1, total_rows):
@@ -184,7 +185,7 @@ if __name__ == '__main__':
         # if no informational codons exist in column, or most common aa is an error
         identity = max(aa_counts, key=aa_counts.get)  # most common aa in column
         if good_rows == 0:
-            out_fh.write("X,X,X,X,X,X,X,X,X\n")    # an X for every value recorded per column
+            out_fh.write("X,X,X,X,X,X,X,X,X,X\n")    # an X for every value recorded per column
             continue
 
         # calculate percent identity for column and fraction of column aligned properly
@@ -200,12 +201,13 @@ if __name__ == '__main__':
         blosum_avg = running_blosum_score / num_comparisons
         avg_freq_score = running_freq_score / good_rows
         avg_freq_ratio = freq_ratio_sum / good_rows
+        log_avg_freq_ratio = np.log(freq_ratio_sum / good_rows)
         avg_log_odds_freq = freq_log_odds_sum / good_rows
 
         # use write_csv for clarity?
         out_fh.write(str(identity) + ',' + str(percent_id) + ',' + str(blosum_avg) + ',' + str(avg_freq_score) + ',' +
                      str(fraction_aligned) + ',' + str(fraction_disordered) + ',' + str(avg_disorder_strength) + ',' +
-                     str(avg_freq_ratio) + ',' + str(avg_log_odds_freq) + '\n')
+                     str(avg_freq_ratio) + ',' + str(log_avg_freq_ratio) + ',' + str(avg_log_odds_freq) + '\n')
 
     out_fh.close()
 
