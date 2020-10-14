@@ -36,6 +36,7 @@ def calc_freq_score(aa, observed, flipped_tt):
     Score a codon as either 1 or 0 for frequent and rare/infrequent, respectively. Uses uniform codon dist as expected.
     :param aa: amino codon translates to
     :param observed: frequency of codon from its source organism codon dist
+    :param flipped_tt: a flipped translation table; key = amino acid, value = list of codons
     :return:
     """
     freq_observed = observed
