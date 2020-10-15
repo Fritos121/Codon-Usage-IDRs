@@ -121,8 +121,9 @@ if __name__ == '__main__':
         disorder_letters.append(letters)
 
     out_fh = open(os.path.join(outdir, uid) + '_ortholog_msa_scores3.data', 'w')
-    out_fh.write("Identity,Percent Identity,Avg Blosum62 Score,Avg Frequency Score,Fraction Aligned,"
-                 "Fraction Disordered,Avg Disorder Strength,Avg Frequency Ratio,Avg Log Odds Frequency\n")
+    out_fh.write("Identity,Percent Identity,Avg Blosum62 Score,Avg Frequency Score,Avg Expected Frequency Score,"
+                 "Avg Frequency Score Ratio,Log Avg Frequency Score Ratio,Avg Frequency Ratio,Avg Log Odds Frequency,"
+                 "Fraction Aligned,Fraction Disordered,Avg Disorder Strength\n")
 
     # calculate information for each column in alignment
     for i in range(0, alignments.get_alignment_length(), 3):
@@ -131,11 +132,12 @@ if __name__ == '__main__':
         aa_counts = {'x': 0}    # initialize with error aa
 
         running_blosum_score = 0
-        running_freq_score = 0
         freq_ratio_sum = 0
         freq_log_odds_sum = 0
         disorder_count = 0
         disorder_strength_sum = 0
+        observed_freq_score_sum = 0
+        expected_freq_score_sum = 0
         good_rows = 0       # count how many rows were used in scoring
 
         for j, row in enumerate(column):
@@ -167,18 +169,19 @@ if __name__ == '__main__':
             tax_id = re.search(tax_id_pattern, row.id).group(1)
             source_codon_dist = fetch_org_distribution(tax_id, source_org_dir)
 
-            # new freq score with expected for entire column given aa and codon dist
-            observed_freq = source_codon_dist[codon1]
-            expected_freq = sum([calc_freq_score(aa1, source_codon_dist[codon], tt_flip) * source_codon_dist[codon]
-                                 for codon in tt_flip[aa1]])
-
             # 1 for frequent codons, 0 for rare/infrequent
-            running_freq_score += calc_freq_score(aa1, observed_freq, tt_flip)
+            observed_freq_score_sum += calc_freq_score(aa1, source_codon_dist[codon1], tt_flip)
+            # expected for entire column given aa and codon dist
+            expected_freq_score_sum += sum([calc_freq_score(aa1, source_codon_dist[codon], tt_flip) * source_codon_dist[codon]
+                                            for codon in tt_flip[aa1]])
 
-            # using observed / expected to as another score
+            # freq score
+            # freq ratio
+            observed_freq = source_codon_dist[codon1]
+            expected_freq = (1 / len(tt_flip[aa1]))  # uniform dist
             freq_ratio_sum += observed_freq / expected_freq
 
-            # use log (ln) odds to get freq score
+            # log (ln) odds of freq ratio
             freq_log_odds_sum += np.log(observed_freq / expected_freq)
 
             # get every row below current one in column
@@ -200,28 +203,37 @@ if __name__ == '__main__':
         # if no informational codons exist in column, or most common aa is an error
         identity = max(aa_counts, key=aa_counts.get)  # most common aa in column
         if good_rows == 0 or identity == 'x':
-            out_fh.write("X,X,X,X,X,X,X,X,X\n")    # an X for every value recorded per column
+            out_fh.write("X,X,X,X,X,X,X,X,X,X,X,X\n")    # an X for every value recorded per column
             continue
 
         # calculate percent identity for column and fraction of column aligned properly
         percent_id = aa_counts[identity] / good_rows    # only want the identity of good columns
         fraction_aligned = good_rows / total_rows  # fraction of rows in column that fail to align
 
+        # calculate avg blosum62 freq scores for column
+        num_comparisons = (good_rows - 1) * good_rows / 2  # number of pairwise comparisons used to get column avg
+        blosum_avg = running_blosum_score / num_comparisons
+
         # calculate fraction of good rows that were disordered, and avg disorder strength of good rows in column
         fraction_disordered = disorder_count / good_rows
         avg_disorder_strength = disorder_strength_sum / good_rows
 
-        # calculate avg blosum62 and freq scores for column
-        num_comparisons = (good_rows - 1) * good_rows / 2  # number of pairwise comparisons used to get column avg
-        blosum_avg = running_blosum_score / num_comparisons
-        avg_freq_score = running_freq_score / good_rows
+        # calc freq scores for the column
+        avg_freq_score = observed_freq_score_sum / good_rows
+        avg_expected_freq_score = expected_freq_score_sum / good_rows
+
+        # freq score ratio and log ratio for column
+        avg_freq_score_ratio = avg_freq_score / avg_expected_freq_score
+        log_avg_freq_score_ratio = np.log(avg_freq_score / avg_expected_freq_score)
+
+        # avg freq ratio and log odds for column
         avg_freq_ratio = freq_ratio_sum / good_rows
         avg_log_odds_freq = freq_log_odds_sum / good_rows
 
-        # use write_csv for clarity?
         out_fh.write(str(identity) + ',' + str(percent_id) + ',' + str(blosum_avg) + ',' + str(avg_freq_score) + ',' +
-                     str(fraction_aligned) + ',' + str(fraction_disordered) + ',' + str(avg_disorder_strength) + ',' +
-                     str(avg_freq_ratio) + ',' + str(avg_log_odds_freq) + '\n')
+                     str(avg_expected_freq_score) + ',' + str(avg_freq_score_ratio) + ',' + str(log_avg_freq_score_ratio)
+                     + ',' + str(avg_freq_ratio) + ',' + str(avg_log_odds_freq) + ',' + str(fraction_aligned) + ',' +
+                     str(fraction_disordered) + ',' + str(avg_disorder_strength) + '\n')
 
     out_fh.close()
 
