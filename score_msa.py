@@ -175,10 +175,20 @@ if __name__ == '__main__':
             expected_freq_score_sum += sum([calc_freq_score(aa1, source_codon_dist[codon], tt_flip) * source_codon_dist[codon]
                                             for codon in tt_flip[aa1]])
 
-            # freq score
             # freq ratio
             observed_freq = source_codon_dist[codon1]
-            expected_freq = (1 / len(tt_flip[aa1]))  # uniform dist
+            # expected_freq = (1 / len(tt_flip[aa1]))  # uniform dist  # change to new calc
+            expected_freq = sum([source_codon_dist[codon] for codon in tt_flip[aa1]
+                                 if source_codon_dist[codon] > (1 / len(tt_flip[aa1]))])  # uniform dist
+            freq_list = []
+            for codon in tt_flip[aa1]:
+                codon_freq = source_codon_dist[codon]
+                if codon_freq > (1 / len(tt_flip[aa1])):  # uniform dist
+                    codon_freq.append(freq_list)
+
+            expected_freq = sum(freq_list)
+
+
             freq_ratio_sum += observed_freq / expected_freq
 
             # log (ln) odds of freq ratio
