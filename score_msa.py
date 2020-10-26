@@ -178,8 +178,12 @@ if __name__ == '__main__':
             # freq ratio
             observed_freq = source_codon_dist[codon1]
             # expected_freq = (1 / len(tt_flip[aa1]))  # uniform dist  # change to new calc
-            expected_freq = sum([source_codon_dist[codon] for codon in tt_flip[aa1]
-                                 if source_codon_dist[codon] > (1 / len(tt_flip[aa1]))])  # uniform dist
+            # expected_freq = sum([source_codon_dist[codon] for codon in tt_flip[aa1]
+                                 # if source_codon_dist[codon] > (1 / len(tt_flip[aa1]))])  # uniform dist
+
+            # EV = value in dist * probability of getting value = codon_freq * 1/number of codons translating to given aa
+            expected_freq = sum([source_codon_dist[codon] * source_codon_dist[codon] for codon in tt_flip[aa1]])
+
             freq_list = []
             for codon in tt_flip[aa1]:
                 codon_freq = source_codon_dist[codon]
