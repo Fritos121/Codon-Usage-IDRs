@@ -120,7 +120,7 @@ if __name__ == '__main__':
         disorder_strength.append(scores)
         disorder_letters.append(letters)
 
-    out_fh = open(os.path.join(outdir, uid) + '_ortholog_msa_scores3.data', 'w')
+    out_fh = open(os.path.join(outdir, uid) + '_ortholog_msa_scores4.data', 'w')
     out_fh.write("Identity,Percent Identity,Avg Blosum62 Score,Avg Frequency Score,Avg Expected Frequency Score,"
                  "Avg Frequency Score Ratio,Log Avg Frequency Score Ratio,Avg Frequency Ratio,Avg Log Odds Frequency,"
                  "Fraction Aligned,Fraction Disordered,Avg Disorder Strength\n")
@@ -165,33 +165,23 @@ if __name__ == '__main__':
             dis_score = disorder_strength[j][i//3]
             disorder_strength_sum += dis_score
 
-            # get frequency score for codon
+            # get frequency of codon from source organism's codon dist.
             tax_id = re.search(tax_id_pattern, row.id).group(1)
             source_codon_dist = fetch_org_distribution(tax_id, source_org_dir)
+            observed_freq = source_codon_dist[codon1]
 
+            # freq score
             # 1 for frequent codons, 0 for rare/infrequent
-            observed_freq_score_sum += calc_freq_score(aa1, source_codon_dist[codon1], tt_flip)
+            observed_freq_score_sum += calc_freq_score(aa1, observed_freq, tt_flip)
             # expected for entire column given aa and codon dist
             expected_freq_score_sum += sum([calc_freq_score(aa1, source_codon_dist[codon], tt_flip) * source_codon_dist[codon]
                                             for codon in tt_flip[aa1]])
 
             # freq ratio
-            observed_freq = source_codon_dist[codon1]
-            # expected_freq = (1 / len(tt_flip[aa1]))  # uniform dist  # change to new calc
-            # expected_freq = sum([source_codon_dist[codon] for codon in tt_flip[aa1]
-                                 # if source_codon_dist[codon] > (1 / len(tt_flip[aa1]))])  # uniform dist
-
-            # EV = value in dist * probability of getting value = codon_freq * 1/number of codons translating to given aa
-            expected_freq = sum([source_codon_dist[codon] * source_codon_dist[codon] for codon in tt_flip[aa1]])
-
-            freq_list = []
-            for codon in tt_flip[aa1]:
-                codon_freq = source_codon_dist[codon]
-                if codon_freq > (1 / len(tt_flip[aa1])):  # uniform dist
-                    codon_freq.append(freq_list)
-
-            expected_freq = sum(freq_list)
-
+            # EV = probability of getting codon * value of freq ratio for codon
+            # EV = codon_freq * (codon_freq / (1/number of codons translating to given aa))
+            # EV = N * sum_i(codon_freq_i * codon_freq_i)
+            expected_freq = len(tt_flip[aa1]) * sum([observed_freq * observed_freq for codon in tt_flip[aa1]])
 
             freq_ratio_sum += observed_freq / expected_freq
 
