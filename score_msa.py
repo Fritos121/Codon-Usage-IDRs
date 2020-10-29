@@ -76,7 +76,6 @@ if __name__ == '__main__':
     tt_flip = flip_trans_table(tt_11)
 
     matrix = matlist.blosum62
-    # print(matrix)
 
     msa_alphabet = AlphabetEncoder(IUPAC.ExtendedIUPACProtein(), '-.')
     alignments = AlignIO.read(align_in, 'fasta', alphabet=msa_alphabet)     # need to make list when getting len()
@@ -120,10 +119,10 @@ if __name__ == '__main__':
         disorder_strength.append(scores)
         disorder_letters.append(letters)
 
-    out_fh = open(os.path.join(outdir, uid) + '_ortholog_msa_scores2.data', 'w')
+    out_fh = open(os.path.join(outdir, uid) + '_ortholog_msa_scores.data', 'w')
     out_fh.write("Identity,Percent Identity,Avg Blosum62 Score,Avg Frequency Score,Avg Expected Frequency Score,"
-                 "Log Avg Frequency Score Ratio,Avg Frequency Ratio,Avg Expected Frequency Ratio,Log Avg Frequency Ratio,"
-                 "Avg Log Odds Frequency Ratio,Fraction Aligned,Fraction Disordered,Avg Disorder Strength\n")
+                 "Log Avg Frequency Score Ratio,Avg Frequency Ratio,Avg Expected Frequency Ratio,Relative Difference,"
+                 "Difference,Fraction Aligned,Fraction Disordered,Avg Disorder Strength\n")
 
     # calculate information for each column in alignment
     for i in range(0, alignments.get_alignment_length(), 3):
@@ -136,9 +135,8 @@ if __name__ == '__main__':
         disorder_strength_sum = 0
         observed_freq_score_sum = 0
         expected_freq_score_sum = 0
-        observed_freq_ratio_sum = 0
-        expected_freq_ratio_sum = 0
-        log_odds_freq_ratio_sum = 0
+        log_observed_freq_ratio_sum = 0
+        log_expected_freq_ratio_sum = 0
         good_rows = 0       # count how many rows were used in scoring
 
         for j, row in enumerate(column):
@@ -186,14 +184,9 @@ if __name__ == '__main__':
             expected_freq_ratio = len(tt_flip[aa1]) * sum([source_codon_dist[codon] * source_codon_dist[codon]
                                                            for codon in tt_flip[aa1]])
 
-            # used to get column avgs, then get log odds of that to report (column-wise)
-            observed_freq_ratio_sum += observed_freq_ratio
-            expected_freq_ratio_sum += expected_freq_ratio
-
-            # log (ln) odds of freq ratio for row (row-wise)
-            log_odds_freq_ratio_sum += np.log(observed_freq_ratio / expected_freq_ratio)
-
-            # freq_ratio_sum += observed_freq / expected_freq
+            # used to get column avgs
+            log_observed_freq_ratio_sum += np.log(observed_freq_ratio)
+            log_expected_freq_ratio_sum += np.log(expected_freq_ratio)
 
             # get every row below current one in column
             for k in range(j + 1, total_rows):
@@ -232,22 +225,28 @@ if __name__ == '__main__':
         # calc freq scores for the column
         avg_freq_score = observed_freq_score_sum / good_rows
         avg_expected_freq_score = expected_freq_score_sum / good_rows
+
         # log avg freq score ratio for column
         log_avg_freq_score_ratio = np.log(avg_freq_score / avg_expected_freq_score)
 
-        # freq ratio and log odds for column
-        avg_freq_ratio = observed_freq_ratio_sum / good_rows
-        avg_expected_freq_ratio = expected_freq_ratio_sum / good_rows  # can report if wanted
-        # log of freq ratio for column
-        log_avg_freq_ratio = np.log(avg_freq_ratio / avg_expected_freq_ratio)
-        # avg row-wise log odds
-        avg_log_odds_freq_ratio = log_odds_freq_ratio_sum / good_rows
+        # freq ratios for column
+        avg_log_freq_ratio = log_observed_freq_ratio_sum / good_rows
+        avg_log_expected_freq_ratio = log_expected_freq_ratio_sum / good_rows
 
-        # avg_log_odds_freq = freq_log_odds_sum / good_rows
+        # absolute diff between obs and exp
+        difference = avg_log_freq_ratio - avg_log_expected_freq_ratio
+
+        # avoids nan's from division by an expected of zero; make sure diff is zero
+        # expected == 0.0 occurs only when methionine is 100% ID for column b/c it only has 1 codon
+        #    Thus, expected_freq_ratio = 1 and np.log(1) = 0 (observed will also be 0 in this case)
+        if avg_log_expected_freq_ratio == 0.0 and avg_log_freq_ratio == 0.0:
+            relative_diff = 0.0  # relative diff between obs and exp
+        else:
+            relative_diff = (avg_log_freq_ratio - avg_log_expected_freq_ratio) / avg_log_expected_freq_ratio
 
         out_fh.write(str(identity) + ',' + str(percent_id) + ',' + str(blosum_avg) + ',' + str(avg_freq_score) + ',' +
-                     str(avg_expected_freq_score) + ',' + str(log_avg_freq_score_ratio) + ',' + str(avg_freq_ratio) +
-                     ',' + str(avg_expected_freq_ratio) + ',' + str(log_avg_freq_ratio) + ',' + str(avg_log_odds_freq_ratio) +
+                     str(avg_expected_freq_score) + ',' + str(log_avg_freq_score_ratio) + ',' + str(avg_log_freq_ratio) +
+                     ',' + str(avg_log_expected_freq_ratio) + ',' + str(relative_diff) + ',' + str(difference) +
                      ',' + str(fraction_aligned) + ',' + str(fraction_disordered) + ',' + str(avg_disorder_strength) + '\n')
 
     out_fh.close()
