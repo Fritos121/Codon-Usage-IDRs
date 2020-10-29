@@ -13,9 +13,9 @@ def try_translate(codon, translation_table):
 
 if __name__ == '__main__':
 
-    align_in = r'D:\Orthologs\Ortholog_Codon_Dist\2PTHR42792\P04949_ortholog_msa.txt'
-    cds_in = r'D:\Orthologs\Ortholog_Codon_Dist\2PTHR42792\P04949_ortholog_cds.fna'
-    error_in = r'D:\Orthologs\Ortholog_Codon_Dist\2PTHR42792\removed_uids.txt'
+    align_in = r'D:\Orthologs\Ortholog_Codon_Dist\PTHR43553\P33941_ortholog_msa.txt'
+    cds_in = r'D:\Orthologs\Ortholog_Codon_Dist\PTHR43553\P33941_ortholog_cds.fna'
+    error_in = r'D:\Orthologs\Ortholog_Codon_Dist\PTHR43553\P33941_removed_uids.txt'
     format = 'fasta'
 
     align_out = ''.join(align_in.split('.')[:-1]) + '_codon.txt'
@@ -107,11 +107,6 @@ if __name__ == '__main__':
                         # print('oops')
 
                 codon_position += 1
-
-        # check that every codon was properly iterated over; if False, aa.upper() != output (via KeyError or legit mismatch)
-        # number codons (non-gap aa in align seq) = codon_pos + 1
-        if not (codon_position == len(codon_seq) - 1):
-            print(False)
 
         # make gene of interest that will have all genes aligned to it for analysis first
         if alignment.id in align_in:
