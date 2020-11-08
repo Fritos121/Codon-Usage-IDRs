@@ -3,6 +3,7 @@ import re
 import os
 import sys
 import platform
+import argparse
 
 # E. coli genes need disorder, but need some ordered controls too
 # make txt file for list of uids of the above genes, grep allortholog file for the families
@@ -10,12 +11,51 @@ import platform
 # where did i get allortholog file from panther (on ftp somewhere)?
 # with a uniprot ID, read allortholog file to get panther family id that the protein is in
 
+
+# command line arguments
+# make it take uniprot gene id, panther family id, and taxid first, then try to make it take csv file with all info
+
+parser = argparse.ArgumentParser()
+parser.add_argument("target_dir", help="directory to store output file(s). Outfile name produced automatically.")
+#parser.add_argument("-o", "--outfile", type=argparse.FileType('w'), help="name of output MSA file")
+gene_info = parser.add_mutually_exclusive_group(required=True)
+gene_info.add_argument("-g", "--gene_info", nargs=3, help="One gene's UniProt ID, PANTHER Family ID, and Taxonomy ID, in that order")
+gene_info.add_argument("-i", "--infile", type=argparse.FileType('r'),
+                       help="CSV file with one or more sets of UniProt IDs, PANTHER Family IDs, and Taxonomy IDs, in that order")
+
+
+args = parser.parse_args()
+base_dir = args.target_dir
+#out_name = args.outfile
+gene_ids = args.gene_info
+in_fh = args.infile
+
+print(base_dir)
+#print(out_name)
+print(gene_ids)
+print(in_fh)
+
+if in_fh:
+    genes = [line.strip().split(',') for line in in_fh]
+
+# gene_info was passed if in_fh wasn't
+else:
+    genes = []
+    genes.append(gene_ids)
+    
+
 p = Panther()
-# list of dicts; get persistant_ids for alignments we want to keep
+for gene_list in genes:
+    gene = gene_list[0]
+    family = gene_list[1]
+    tax_id = gene_list[2]
+    print(gene, family, tax_id)
+    quit()
+
+# list of dicts; get persistent_ids for alignments we want to keep
 family = 'PTHR43553'
 family_msa = p.get_family_msa(family)
 
-# can get ortho info from Allorthologs file instead... didnt have it at time of making script
 # interested in list of dicts using 'mapped' key; orthologs of given gene in given org
 gene = 'P33941' # ['P04949']
 ortho = p.get_ortholog(gene, '83333')
