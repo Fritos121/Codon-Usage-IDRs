@@ -53,12 +53,6 @@ if __name__ == "__main__":
     ftp.login()
     fnbase = "_cds_from_genomic.fna.gz"
 
-
-    # base_dir = r"D:/Orthologs/Source_Org_Codon_Dist"
-
-    # assembly_links = [('/genomes/all/GCF/000/005/575/GCF_000005575.2_AgamP3', '7165'),
-                      # ('/genomes/all/GCF/000/209/225/GCF_000209225.1_ASM20922v1', '45351')]
-
     for assembly, tax_id in assembly_links:
         # create dir for specific org using tax_id; pass if dir already exists
         dir_name = os.path.join(base_dir, tax_id)
