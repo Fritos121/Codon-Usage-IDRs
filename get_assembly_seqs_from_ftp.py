@@ -36,7 +36,7 @@ if __name__ == "__main__":
 
     # ensure proper command line arguments are passed.
     if len(sys.argv) != 3:
-        exit("Required positional arguments: {} <infile> <base_directory>".format(sys.argv[0]))
+        exit(f"Required positional arguments: {sys.argv[0]} <infile> <base_directory>")
 
     infile = sys.argv[1]
     in_fh = open(infile)

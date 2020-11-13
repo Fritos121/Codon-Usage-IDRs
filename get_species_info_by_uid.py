@@ -97,14 +97,14 @@ def get_assembly_id(tax_id):
 
 if __name__ == "__main__":
 
-    # no optional args, but kept for clarity
+    # no optional args, but kept for clarity since there are a lot of arguments
     parser = argparse.ArgumentParser()
-    parser.add_argument('infile', type=argparse.FileType('r'), help="Fasta file containing protein uids in header")
+    parser.add_argument('infile', type=argparse.FileType('r'), help="Fasta file containing protein UniProt IDs as header")
     parser.add_argument("outfile", type=argparse.FileType('w'), help="Name of fasta file to write coding seqs to")
     parser.add_argument('error_file', type=argparse.FileType('w'), help="Name of error log file")
     ftp = parser.add_argument_group('ftp', 'Arguments used to create csv file with partial ftp links')
     ftp.add_argument("ftp_out", type=argparse.FileType('w'), help="Filename for csv file with partial ftp links")
-    ftp.add_argument('email', help='Email address required to use during Entrez lookups')
+    ftp.add_argument('email', help='Email address required to use Entrez lookups')
 
     args = parser.parse_args()
     in_fh = args.infile
@@ -120,7 +120,7 @@ if __name__ == "__main__":
 
     # remove placeholder Nones
     tax_ids = [x[1] for x in ortho_mapping.values() if x[1] is not None]
-    unique_tax_ids = list(set(tax_ids))
+    unique_tax_ids = list(set(tax_ids))  # need list for get_match() (set not subscriptable); if removed/reworked try just set
 
     # get partial ftp links to be used by get_assembly_seqs_from_ftp.py
     ftp_pattern = re.compile(r"<FtpPath_RefSeq>\S+(/genomes\S+GCF_\S+)<")
@@ -148,7 +148,7 @@ if __name__ == "__main__":
 
     if missing_ftp:
         print('\n{} Organism(s) Missing FTP Link for Assembly: '.format(len(missing_ftp)) + ', '.join(missing_ftp))
-        # error_fh.write('\n'.join(missing_ftp) + '\n')  # add exactly this to get_info if it works
+        # error_fh.write('\n'.join(missing_ftp) + '\n')
 
     # replace tax_id with None for orthos that belong to orgs with unavailable assembly/ftp info (removed later)
     for uid, info in ortho_mapping.items():
@@ -180,7 +180,6 @@ if __name__ == "__main__":
                 continue
 
             else:
-                #fasta_fh.write(">uid=" + uid + ";embl_acc=" + info[0] + ";tax_id=" + info[1] + "\n")
                 fasta_fh.write(f">uid={uid};embl_acc={info[0]};tax_id={info[1]}\n")
                 fasta_fh.write(cds + "\n")
 
