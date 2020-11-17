@@ -34,15 +34,41 @@ VSL2 - Used to predict protein disorder (coming to this repo soon)
 
 All programs in the pipeline are command-line compatible. Each program's description, required input, and outputs are provided below.
 
-get_ortholog_info.py:
+* <ins>get_ortholog_info.py</ins>:
 
-  Description: 
+  * <ins>Description</ins>: Retrieve orthologs and their respecitve family multiple sequence alignments for each protein.
   
-  Required Input:
+  * <ins>Input Files</ins>: CSV file with one or more sets of UniProt IDs, PANTHER Family IDs, and Taxonomy IDs, in that order.
   
-  Output:
+  * <ins>Output</ins>: A text file of multiple sequence alignments in Fasta format.
 
-get_species_info_by_uid.py
+* <ins>get_species_info_by_uid.py</ins>:
+
+  * <ins>Description</ins>: Retreive taxonomy ID's and coding sequences. Filter out any protein with incomplete information.
+  
+  * <ins>Input Files</ins>: A text file of multiple sequence alignments in Fasta format where UniProtKB IDs are the headers.
+  
+  * <ins>Output</ins>: 1) CSV file containg partial links to the NCBI FTP server, and the corresponding taxonomy ID. 2) Fasta file of all DNA coding sequences from input list. 3) Error Log text file recording which proteins were removed.
+
+* <ins>get_assembly_seqs_from_ftp.py</ins>:
+
+  * <ins>Description</ins>: Download file from NCBI FTP that contains all the protein coding sequences in an organism.
+  
+  * <ins>Input Files</ins>: CSV file containg partial links to the NCBI FTP server, and the corresponding taxonomy ID.
+  
+  * <ins>Output</ins>: Fasta file containing all protein coding sequences for an organism.
+  
+  
+* <ins>get_distributions.sh</ins>:
+
+  * <ins>Description</ins>: Create CSV file(s) containing the codon distributions for: 1) Each organism in directory 2) Each gene in each Fasta file in subdirectories (-m option). Uses codon_dist_from_fasta.py for codon distribution calculation.
+  
+  * <ins>Input Files</ins>: Fasta file containing all protein coding sequences for an organism.
+  
+  * <ins>Output</ins>: CSV file containing codon distribution, formatted as "codon,amino acid"
+
+
+
 
 
 Below is a visualization of the pipeline.
