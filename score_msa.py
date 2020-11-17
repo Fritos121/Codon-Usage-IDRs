@@ -6,11 +6,12 @@ import numpy as np
 from vsl2 import run_vsl2b
 import re
 import os
+import sys
 
 
 def fetch_org_distribution(taxonomy_id, base_dir):
     """
-    Creates codon distribution for a given organism found in the given directory.
+    Fetches codon distribution for a given organism found in the given directory.
     Distributions files are expected to be in csv format, each line formatted as: codon, frequency
     :param taxonomy_id: string; NCBI tax_id
     :param base_dir: directory where folders named by tax_id are stored
@@ -20,7 +21,7 @@ def fetch_org_distribution(taxonomy_id, base_dir):
 
     # add empty string to trick join to add one more set of filepath delimiters
     org_dir = os.path.join(base_dir, taxonomy_id, '')
-    # grabs 1st csv file (should be only one if using whole pipeline)
+    # get all files ending with _dist.csv
     file_list = glob.glob(org_dir + '*_dist.csv')
     if len(file_list) != 1:
         exit('Too many or no csv files in directory. Ensure exactly one distribution file exists.')
@@ -36,8 +37,8 @@ def calc_freq_score(aa, observed, flipped_tt):
     Score a codon as either 1 or 0 for frequent and rare/infrequent, respectively. Uses uniform codon dist as expected.
     :param aa: amino codon translates to
     :param observed: frequency of codon from its source organism codon dist
-    :param flipped_tt: a flipped translation table; key = amino acid, value = list of codons
-    :return:
+    :param flipped_tt: a flipped translation table; key = amino acid, value = list of synonymous codons
+    :return: score of either 1 or 0
     """
     freq_observed = observed
     freq_expected = (1 / len(flipped_tt[aa]))  # uniform dist
@@ -48,9 +49,14 @@ def calc_freq_score(aa, observed, flipped_tt):
 
 
 if __name__ == '__main__':
-    align_in = r'D:\Orthologs\Ortholog_Codon_Dist\PTHR42792\P04949_ortholog_msa_codon.txt'
-    source_org_dir = r'D:\Orthologs\Source_Org_Codon_Dist'
-    outdir = r'D:\Orthologs\Ortholog_Codon_Dist\PTHR42792'
+
+    # ensure proper command line arguments are passed.
+    if len(sys.argv) != 4:
+        exit(f"Required positional arguments: {sys.argv[0]} <codon_alignment_file> <source_org_dir> <out_directory>")
+
+    align_in = sys.argv[1]  # codon MSA file
+    source_org_dir = sys.argv[2]  # where source org codon distributions are stored
+    outdir = sys.argv[3]  # directory to save output file to
 
     # don't want to remove non-standard aa here b/c tt_11 used for freq calc
     # making those codons A will change the distribution of Alanine performed later
@@ -78,13 +84,13 @@ if __name__ == '__main__':
     matrix = matlist.blosum62
 
     msa_alphabet = AlphabetEncoder(IUPAC.ExtendedIUPACProtein(), '-.')
-    alignments = AlignIO.read(align_in, 'fasta', alphabet=msa_alphabet)     # need to make list when getting len()
-    # print(len(alignments))   # number of orthologs use in final msa; another function in module will do this?
+    alignments = AlignIO.read(align_in, 'fasta', alphabet=msa_alphabet)
+    # print(len(list(alignments)))   # number of orthologs use in final msa
 
     uid_pattern = re.compile(r'uid=(\S+?);')
     tax_id_pattern = re.compile(r'tax_id=(\d+)')
 
-    # name file with uid of gene of interest as has been convention; expects it to be the first gene in the msa
+    # name outfile with uid of gene of interest as has been convention; expects it to be the first gene in the msa
     uid = re.search(uid_pattern, alignments[0].id).group(1)
 
     bad_codons = ['...', '---', 'NNN']    # codons that will not receive scores
@@ -108,7 +114,7 @@ if __name__ == '__main__':
                 aa_seq += aa
 
         # print(len(aa_seq), alignment.id)
-        scores, letters = run_vsl2b(aa_seq)[2:4]    # last item returned is tuple of disorder score by residue
+        scores, letters = run_vsl2b(aa_seq)[2:4]
         letters = list(letters)      # needs to be list not tuple
 
         # at these indexes, need to insert char to keep disorder scores registered with alignment
@@ -119,12 +125,12 @@ if __name__ == '__main__':
         disorder_strength.append(scores)
         disorder_letters.append(letters)
 
-    out_fh = open(os.path.join(outdir, uid) + '_ortholog_msa_scores.data', 'w')
+    out_fh = open(os.path.join(outdir, uid) + '_ortholog_msa_scores2.data', 'w')
     out_fh.write("Identity,Percent Identity,Avg Blosum62 Score,Avg Frequency Score,Avg Expected Frequency Score,"
                  "Log Avg Frequency Score Ratio,Avg Frequency Ratio,Avg Expected Frequency Ratio,Relative Difference,"
                  "Difference,Fraction Aligned,Fraction Disordered,Avg Disorder Strength\n")
 
-    # calculate information for each column in alignment
+    # calculate scores for each column in alignment
     for i in range(0, alignments.get_alignment_length(), 3):
         column = alignments[:, i:i+3]   # get MSA object with just the first column, size of one codon
         total_rows = len(column)
@@ -146,6 +152,7 @@ if __name__ == '__main__':
                 aa_counts['x'] += 1     # count error codon
                 continue                # don't want to score bad codons
 
+            # record occurrence of aa
             else:
                 aa1 = tt_11[codon1]
                 try:
@@ -204,7 +211,7 @@ if __name__ == '__main__':
 
                 running_blosum_score += score
 
-        # if no informational codons exist in column, or most common aa is an error
+        # do not score column if no informational codons exist in column, or most common aa is an error
         identity = max(aa_counts, key=aa_counts.get)  # most common aa in column
         if good_rows == 0 or identity == 'x':
             out_fh.write("X,X,X,X,X,X,X,X,X,X,X,X,X\n")    # an X for every value recorded per column

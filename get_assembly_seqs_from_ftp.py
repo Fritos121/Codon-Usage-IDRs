@@ -36,10 +36,10 @@ if __name__ == "__main__":
 
     # ensure proper command line arguments are passed.
     if len(sys.argv) != 3:
-        exit(f"Required positional arguments: {sys.argv[0]} <infile> <base_directory>")
+        exit(f"Required positional arguments: {sys.argv[0]} <csv_infile> <base_directory>")
 
     infile = sys.argv[1]
-    in_fh = open(infile)
+    in_fh = open(infile, 'r')
 
     # where orgs are being saved
     base_dir = sys.argv[2]
