@@ -7,6 +7,11 @@ import sys
 
 
 def parse_fasta(file_handle):
+    """
+    Separate fasta headers and sequences into two lists
+    :param file_handle: file handle of fasta file
+    :return: list of headers, list of sequences
+    """
     entry_headers = []
     entry_seqs = []
     for line in file_handle:
@@ -22,6 +27,12 @@ def parse_fasta(file_handle):
 
 
 def get_disorder_scores(coding_seq, trans_table):
+    """
+    Translates DNA sequence to proteins; uses VSL2 to predict disorder in protein sequence.
+    :param coding_seq: string; DNA protein coding sequence
+    :param trans_table: dictionary of 'codon':'AA' key-value pairs
+    :return: disorder scores from VSL2, and the length of the analyzed sequence
+    """
     aa_seq = ''
     for i, codon in enumerate(codon_iter(coding_seq)):
         if len(codon) % 3 == 0:
