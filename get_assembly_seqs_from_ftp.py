@@ -36,10 +36,10 @@ if __name__ == "__main__":
 
     # ensure proper command line arguments are passed.
     if len(sys.argv) != 3:
-        exit("Required positional arguments: {} <infile> <base_directory>".format(sys.argv[0]))
+        exit(f"Required positional arguments: {sys.argv[0]} <csv_infile> <base_directory>")
 
     infile = sys.argv[1]
-    in_fh = open(infile)
+    in_fh = open(infile, 'r')
 
     # where orgs are being saved
     base_dir = sys.argv[2]
@@ -52,12 +52,6 @@ if __name__ == "__main__":
     ftp = ftplib.FTP(ftp_site)
     ftp.login()
     fnbase = "_cds_from_genomic.fna.gz"
-
-
-    # base_dir = r"D:/Orthologs/Source_Org_Codon_Dist"
-
-    # assembly_links = [('/genomes/all/GCF/000/005/575/GCF_000005575.2_AgamP3', '7165'),
-                      # ('/genomes/all/GCF/000/209/225/GCF_000209225.1_ASM20922v1', '45351')]
 
     for assembly, tax_id in assembly_links:
         # create dir for specific org using tax_id; pass if dir already exists

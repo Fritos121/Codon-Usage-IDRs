@@ -1,96 +1,96 @@
 from bioservices import Panther
 import re
 import os
-import sys
-import platform
+import argparse
 
-# E. coli genes need disorder, but need some ordered controls too
-# make txt file for list of uids of the above genes, grep allortholog file for the families
 
-# where did i get allortholog file from panther (on ftp somewhere)?
-# with a uniprot ID, read allortholog file to get panther family id that the protein is in
+# command line arguments
+parser = argparse.ArgumentParser()
+parser.add_argument("target_dir", help="directory to store output file(s). Outfile name produced automatically.")
+prot_info = parser.add_mutually_exclusive_group(required=True)
+prot_info.add_argument("-p", "--prot_info", nargs=3, help="One protein's UniProt ID, PANTHER Family ID, and Taxonomy ID, in that order")
+prot_info.add_argument("-i", "--infile", type=argparse.FileType('r'),
+                       help="CSV file with one or more sets of UniProt IDs, PANTHER Family IDs, and Taxonomy IDs, in that order")
+
+args = parser.parse_args()
+base_dir = args.target_dir
+prot_ids = args.prot_info
+in_fh = args.infile
+
+# if in_fh wasn't passed, then gene_info was
+if in_fh:
+    proteins = [line.strip().split(',') for line in in_fh]
+else:
+    proteins = [prot_ids]
+
 
 p = Panther()
-# list of dicts; get persistant_ids for alignments we want to keep
-family = 'PTHR43553'
-family_msa = p.get_family_msa(family)
+for prot_list in proteins:
+    prot = prot_list[0]
+    family = prot_list[1]
+    tax_id = prot_list[2]
 
-# can get ortho info from Allorthologs file instead... didnt have it at time of making script
-# interested in list of dicts using 'mapped' key; orthologs of given gene in given org
-gene = 'P33941' # ['P04949']
-ortho = p.get_ortholog(gene, '83333')
+    # list of dicts; get persistent_ids for alignments we want to keep
+    family_msa = p.get_family_msa(family)
+    # orthologs of given prot in given org
+    ortho = p.get_ortholog(prot, tax_id)
 
-# if multiple genes from same org used, unmapped might be populated
-if ortho['unmapped']:
-    print(ortho['unmapped'])
-else:
-    print("All genes mapped.")
+    # if multiple prots from same org used, unmapped might be populated
+    if ortho['unmapped']:
+        print(f"Unmapped proteins for {prot}: {ortho['unmapped']} \n")
+    else:
+        print(f"All proteins mapped for {prot}.\n")
 
-# print(family_msa[0], '\n')
-# print(ortho['mapped'][0], '\n')
+    uniprotKB_id = re.compile(r".*?\|UniProtKB=(.*)")
+    ortho_mapping = {}  # maps ortholog persistent ids to its respective uid
+    # print(len(family_msa))
 
-uniprotKB_id = re.compile(r".*?\|UniProtKB=(.*)")
-ortho_mapping = {}  # maps ortholog persistent ids to its respective uid
-print(len(family_msa))
+    # if only one ortholog exists, only a dict is returned; wrap it in list to make it work in loop
+    if isinstance(ortho['mapped'], dict):
+        ortho['mapped'] = [ortho['mapped']]
 
-missing_target_persis_id = []
-for x in ortho['mapped']:
-    # print(x)
-    match = re.search(uniprotKB_id, x['target_gene'])
-    uid = match.group(1)
+    missing_target_persis_id = []
+    for x in ortho['mapped']:
+        match = re.search(uniprotKB_id, x['target_gene'])
+        uid = match.group(1)
 
-    # can be obtained by searching target_gene manually in Panther db... go to end of tree msa
-    # make function if target_gene or id have same issue. make error out if exceeding certain number of errors?
+        # can be obtained by searching target_gene manually in Panther db... go to end of tree msa
+        # make error out if exceeding certain number of errors?
+        try:
+            pid = x['target_persistent_id']
+        except KeyError:
+            # pid = input("\nSearch " + uid + " in Panther db and enter Persistent ID from end of Tree: ")
+            missing_target_persis_id.append(uid)
+            continue
+
+        ortho_mapping[pid] = uid
+
+    # adds the prot of interest to ortho_mapping so its information is included in later analysis and processing
+    else:
+        uid = x['id']
+        pid = x['persistent_id']
+        ortho_mapping[pid] = uid
+
+    if missing_target_persis_id:
+        print('{} Ortholog(s) Removed Due To Missing Target Persistent ID: '.format(len(missing_target_persis_id))
+              + ', '.join(missing_target_persis_id), '\n')
+
+    # get alignments for all orthologs in family (all orthologs in family, but not all prots in family are orthologs)
+    orthos_msa = [alignment for alignment in family_msa if alignment['persistent_id'] in ortho_mapping.keys()]
+    # print(len(orthos_msa), len(ortho_mapping))
+
+    # write alignment to file; placed in Panther family folder
+    fn_base = "_ortholog_msa.txt"
+    dir_name = os.path.join(base_dir, family)
     try:
-        pid = x['target_persistent_id']
-    except KeyError:
-        # pid = input("\nSearch " + uid + " in Panther db and enter Persistent ID from end of Tree: ")
-        missing_target_persis_id.append(uid)
-        continue
+        os.mkdir(dir_name)
+    except OSError:
+        pass
 
-    ortho_mapping[pid] = uid
-
-# adds the gene of interest to ortho_mapping so its information is included in later analysis and processing
-else:
-    uid = x['id']
-    pid = x['persistent_id']
-    ortho_mapping[pid] = uid
-
-if missing_target_persis_id:
-    print('\n{} Ortholog(s) Removed Due To Missing Target Persistent ID: '.format(len(missing_target_persis_id))
-          + ', '.join(missing_target_persis_id))
-
-# print(ortho_mapping)
-
-# get alignments for all orthologs in family (all orthologs in family, but not all genes in family are orthologs)
-orthos_msa = [alignment for alignment in family_msa if alignment['persistent_id'] in ortho_mapping.keys()]
-
-print(len(orthos_msa), len(ortho_mapping))
-# genes i've been working with ('A0NAQ1', 'A8DWE3')
-# print(ortho_mapping['PTN002871129'], ortho_mapping['PTN001250064'])
-
-
-# write alignment to file; placed in Panther family folder; allows windows and linux file paths
-# once testing completed, make program take sys arg for base_dir, remove this
-if platform.system() == "Windows":
-    base_dir = r"D:\Orthologs\Ortholog_Codon_Dist"
-elif platform.system() == "Linux":
-    base_dir = os.path.abspath("/mnt/d/Orthologs/Ortholog_Codon_Dist")
-
-# base_dir = sys.argv[1]
-fn_base = "_ortholog_msa.txt"
-
-# if only one gene ever retrieved from family, take the gene name out of dir_name and add to file_name
-dir_name = os.path.join(base_dir, family)
-try:
-    os.mkdir(dir_name)
-except OSError:
-    pass
-
-file_name = os.path.join(dir_name, gene) + fn_base
-with open(file_name, 'w') as fh:
-    for alignment in orthos_msa:
-        seq, pid = alignment.items()
-        fh.write(">" + ortho_mapping[pid[1]] + "\n")
-        fh.write(seq[1] + "\n")
+    file_name = os.path.join(dir_name, prot) + fn_base
+    with open(file_name, 'w') as fh:
+        for alignment in orthos_msa:
+            seq, pid = alignment.items()
+            fh.write(">" + ortho_mapping[pid[1]] + "\n")
+            fh.write(seq[1] + "\n")
 

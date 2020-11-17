@@ -1,7 +1,7 @@
-import os
-import argparse
-import codon_dist as cd
 from Bio import SeqIO
+import codon_dist as cd
+import argparse
+import os
 
 
 parser = argparse.ArgumentParser()
@@ -21,7 +21,6 @@ outfile = args.outfile
 records = list(SeqIO.parse(infile, 'fasta'))
 coding_seqs = [record.seq for record in records]
 
-# verified against ncbi 08Apr2019, plus Chris's exceptions in species.py
 # allow for selenocysteine (TGA=U) (https://en.wikipedia.org/wiki/Selenocysteine)
 # allow for pyrrolysine (TAG=O) (https://en.wikipedia.org/wiki/Pyrrolysine)
 tt_11 = {
@@ -47,14 +46,14 @@ tt_11 = {
 codon_dists = []
 if args.multi_out:
     uids = [record.id.split(';')[0][4:] for record in records]  # get uid from get_species_info_by_uid.py fna file
-    print(len(coding_seqs), "output files will be created")
+    print(f"{len(coding_seqs)} output files will be created.")
     codon_counts = cd.get_protein_counts(coding_seqs, tt_11)
 
     for count_dict in codon_counts:
         # change counts dict into a frequency distribution
         codon_dist = cd.frequentize_counts(count_dict, tt_11)
         codon_dists.append(codon_dist)
-        # print(len(codon_dists), codon_dists[0])
+
 else:
     codon_counts = cd.get_org_counts(coding_seqs, tt_11)
     codon_dists.append(cd.frequentize_counts(codon_counts, tt_11))
@@ -73,7 +72,7 @@ for i, dist in enumerate(codon_dists):
         filename = os.path.join(target_dir, outfile)
     with open(filename, 'w') as fh:
         for codon, fraction in dist.items():
-            fh.write(codon + ', ' + str(fraction) + '\n')
+            fh.write(f"{codon}, {str(fraction)}\n")
 
 
 
