@@ -2,7 +2,7 @@
 
 Codon-Usage-IDRs is a repository storing the pipeline used in my basic analysis of the conservation of codon usage bias in Intrinsically Disordered Regions.
 
-## Packages Used
+## Python Packages Used
 
 A number of python packages were used in this pipeline:
   1. Biopython (v1.72)
