@@ -28,12 +28,12 @@ This module cannot be installed using pip. To install, use the provided setup.py
 python -m pip install --upgrade setuptools
 ```
 
-1. Path to the directory where the VSL2 setup.py file is located:
+2. Path to the directory where the VSL2 setup.py file is located:
 ```bash
 cd <directory>
 ```
 
-1. Run the setup.py file:
+3. Run the setup.py file:
 ```bash
 python setup.py install
 ```
