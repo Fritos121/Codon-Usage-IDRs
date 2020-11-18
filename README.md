@@ -14,10 +14,29 @@ A number of python packages were used in this pipeline:
 
 ## Other Software Used
 
-VSL2 - Used to predict protein disorder (coming to this repo soon)
+VSL2 - Used to predict protein disorder. (installation below)
 
-[Jupyter Notebook](https://jupyter.org/install) - used to visualize and analyze data
+[Jupyter Notebook](https://jupyter.org/install) - Used to visualize and analyze data.
 
+## VSL2 Installation
+
+This module cannot be installed using pip. To install, use the provided setup.py file by following these steps:
+
+1. Make sure you have the most up-to-date version of setuptools:
+
+```bash
+python -m pip install --upgrade setuptools
+```
+
+1. Path to the directory where the VSL2 setup.py file is located:
+```bash
+cd <directory>
+```
+
+1. Run the setup.py file:
+```bash
+python setup.py install
+```
 
 ## Databases Accessed
 
@@ -102,5 +121,29 @@ All programs in the pipeline are command-line compatible. Each program's descrip
   * <ins>Input Files</ins>: A DATA file with per column scores for each score used to extract the 3 features.
   
   * <ins>Output</ins>: Inline figures and tables.
+
+## Programs Not Used Directly in Pipeline
+
+Three programs in this repository were not directly used in the pipeline. Their functions are described below.
+
+* <ins>calc_gene_overall_percent_disorder.py</ins>:
+  
+  * <ins>Description</ins>: A command-line compatible program that predicts overall percent disorder of a list of genes using VSL2.
+  
+  * <ins>Input Files</ins>: Can either be: 1) A text file of UniProtKB IDs 2) A FASTA file of DNA sequences
+  
+  * <ins>Output</ins>: CSV file containing each gene's predicted overall percent disorder.
+  
+* <ins>codon_dist.py</ins>:
+ 
+  * <ins>Description</ins>: This file is used as a module in multiple scripts in the pipeline.
+  
+* <ins>get_stats.py</ins>:
+ 
+  * <ins>Description</ins>: This file is used as a module in codon_dist.py
+
+
+
+
 
 
