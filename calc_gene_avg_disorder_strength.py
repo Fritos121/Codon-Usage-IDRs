@@ -44,7 +44,7 @@ def get_disorder_scores(coding_seq, trans_table):
                 aa_seq += aa
 
     # -1 gets hard score, -2 gets soft score
-    scores = run_vsl2b(aa_seq)[-2]
+    scores = run_vsl2b(aa_seq)[-1]
     seq_length = len(aa_seq)
 
     return scores, seq_length
@@ -123,7 +123,7 @@ if __name__ == '__main__':
         for header, seq in zip(headers, seqs):
             dis_scores, aa_seq_len = get_disorder_scores(seq, tt_11)
 
-            # divide by length of amino acid seq used in vsl2 to get proper avg
+            # divide by length of amino acid seq used in vsl2 to get proper percentage
             # remember that failed translations are not scored in function
-            avg_disorder_strength = sum(dis_scores) / aa_seq_len
-            out_fh.write(header + ',' + str(avg_disorder_strength) + '\n')
+            overall_percent_disorder = dis_scores.count('D') / aa_seq_len
+            out_fh.write(header + ',' + str(overall_percent_disorder) + '\n')
