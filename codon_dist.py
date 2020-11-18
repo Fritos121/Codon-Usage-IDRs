@@ -1,6 +1,6 @@
 # Get GC from Codon distribution
 from Bio.SeqUtils import GC
-from get_stats import parse_fasta, parse_data
+from get_stats import parse_fasta
 from statistics import mean
 
 
@@ -149,7 +149,6 @@ def frequentize_counts(codon_counts, translation_table):
 
 if __name__ == '__main__':
 
-    # verified against ncbi 08Apr2019, plus Chris's exceptions in species.py
     # allow for selenocysteine (TGA=U) (https://en.wikipedia.org/wiki/Selenocysteine)
     # allow for pyrrolysine (TAG=O) (https://en.wikipedia.org/wiki/Pyrrolysine)
     tt_11 = {
@@ -181,8 +180,6 @@ if __name__ == '__main__':
     protein_aa = translate_counts(protein_counts, tt_11)
 
     protein_gc = [get_GC(frac_codon, aac, tt_11) for aac in protein_aa]
-
-    # print(protein_gc[0:2])
 
     print(GC(full_cds))
     print(mean(protein_gc))
