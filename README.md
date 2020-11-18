@@ -14,7 +14,7 @@ A number of python packages were used in this pipeline:
 
 ## Other Software Used
 
-VSL2 - Used to predict protein disorder. (installation below)
+VSL2 - Used to predict protein disorder (Installation instructions below).
 
 [Jupyter Notebook](https://jupyter.org/install) - Used to visualize and analyze data.
 
